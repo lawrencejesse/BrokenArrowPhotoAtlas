@@ -1,0 +1,93 @@
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #f0f4f8;
+  margin: 0;
+  padding: 0;
+  color: #333;
+}
+
+.container {
+  background-color: #fff;
+  padding: 20px;
+  border: 2px solid #000; /* Add a border for debugging */
+}
+
+header {
+  text-align: center;
+}
+
+header h1 {
+  font-size: 26px;
+  color: #007bff;
+}
+
+.instructions {
+  margin: 20px 0;
+}
+
+.instructions h2 {
+  font-size: 20px;
+  color: #007bff;
+}
+
+.instructions ol {
+  padding-left: 20px;
+}
+
+.instructions li {
+  margin-bottom: 10px;
+}
+
+input[type="file"],
+input[type="text"],
+button {
+  display: block;
+  margin: 10px auto;
+  padding: 10px;
+  font-size: 16px;
+}
+
+input[type="text"] {
+  width: 80%; /* Adjust this value to make the input box wider */
+}
+
+button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+th {
+  background-color: #007bff;
+  color: #fff;
+}
+
+td {
+  background-color: #f9f9f9;
+}
+
+footer {
+  text-align: center;
+  margin-top: 20px;
+}

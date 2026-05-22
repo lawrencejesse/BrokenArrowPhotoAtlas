@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo EXIF Data Extractor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/full.umd.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Photo EXIF Data Extractor</h1>
+            <p>Select a folder of images to extract EXIF data and export it to CSV or GeoJSON</p>
+        </header>
+        <main>
+            <section class="instructions">
+                <h2>Instructions</h2>
+                <ol>
+                    <li>Choose files - browse to the folder of photos that you want to include and select upload when you are in the folder with the photos.</li>
+                    <li>Copy and paste the file path from the Windows Explorer address bar and paste it into the dialogue box.</li>
+                    <li>Click Extract EXIF Data.</li>
+                    <li>Choose to download the data as a CSV or GeoJSON file.</li>
+                </ol>
+                <p><strong>Note:</strong> The GeoJSON file is recommended as it loads into QGIS nicely and is an editable file, so the user can add comments, delete certain photos, etc.</p>
+            </section>
+            <input type="file" id="file-input" webkitdirectory directory multiple>
+            <input type="text" id="folder-path" placeholder="Paste folder path from Explorer">
+            <button id="extract-btn">Extract EXIF Data</button>
+            <button id="download-csv">Download CSV</button>
+            <button id="download-geojson">Download GeoJSON</button>
+            <div class="table-container">
+                <table id="exif-table">
+                    <thead>
+                        <tr id="table-headers"></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+        <footer>
+            <p>&copy; This is Jesse Lawrence Feeling Optimistic on AI and The Future.</p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
