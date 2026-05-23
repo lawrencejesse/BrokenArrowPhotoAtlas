@@ -288,41 +288,39 @@ const PORTRAIT_CSS = `
   grid-column: 1;
   grid-row: 3;
   display: flex;
-  align-items: stretch;
-  gap: 0;
-  padding-top: 0.05in;
-  border-top: 2px solid #d1d5db;
-  overflow: hidden;
-}
-
-.bottom-title {
-  flex-shrink: 0;
-  width: 2.5in;
-  padding-right: 0.18in;
-  display: flex;
   flex-direction: column;
   justify-content: center;
-}
-
-.bottom-caption {
-  flex: 1;
-  border-left: 1.5px solid #d1d5db;
-  padding-left: 0.18in;
-  display: grid;
-  grid-template-columns: auto auto;
-  grid-template-rows: auto auto;
-  gap: 0.05in 0.3in;
-  font-size: 8.5pt;
-  font-weight: 500;
-  align-content: center;
+  gap: 0.04in;
   overflow: hidden;
 }
-.bottom-caption div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bottom-caption .cap-label { color: #BF9555; font-weight: 800; }
 
-.report-h1 { font-size: 11pt; }
-.gradient-rule { width: 100%; margin: 0.045in 0 0.04in; }
-.report-h2 { font-size: 8.5pt; }`;
+.caption-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 9pt;
+  font-weight: 600;
+  color: #111;
+}
+
+.caption-row .cap-item { white-space: nowrap; }
+.caption-row .cap-sep {
+  padding: 0 0.14in;
+  color: #aaa;
+  font-weight: 300;
+}
+.caption-row .cap-label { color: #BF9555; font-weight: 800; }
+
+.gradient-rule { width: 100%; height: 2.5px; margin: 0; }
+
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2in;
+}
+
+.report-h1 { font-size: 14pt; margin: 0; }
+.report-h2 { font-size: 11pt; margin: 0; font-weight: 600; color: #444; text-transform: none; letter-spacing: 0; }`;
 
 /* Build one landscape page */
 function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
@@ -350,14 +348,10 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
 }
 
 /* Build one portrait page */
-function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle) {
+function buildPortraitPage(item, titleSafe, subtitleSafe) {
   const cap = item.caption;
-  const titleBlock = hasTitle
-    ? `<h1 class="report-h1">${titleSafe}</h1>
-       <div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe}</h2>`
-    : `<div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>`;
+  const altSep = cap.altitude ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '';
+  const comSep = cap.comment  ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '';
   return `
 <section class="photo-page">
   <div class="main-photo frame">
@@ -365,12 +359,16 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle) {
   </div>
   <div class="map frame" id="${escHtml(item.id)}-map"></div>
   <div class="bottom-strip">
-    <div class="bottom-title">${titleBlock}</div>
-    <div class="bottom-caption">
-      <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
-      <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
-      ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '<div></div>'}
-      ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '<div></div>'}
+    <div class="caption-row">
+      <div class="cap-item"><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
+      <span class="cap-sep">|</span>
+      <div class="cap-item"><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
+      ${altSep}${comSep}
+    </div>
+    <div class="gradient-rule"></div>
+    <div class="title-row">
+      <h1 class="report-h1">${titleSafe}</h1>
+      ${subtitleSafe ? `<h2 class="report-h2">${subtitleSafe}</h2>` : ''}
     </div>
   </div>
 </section>`;
