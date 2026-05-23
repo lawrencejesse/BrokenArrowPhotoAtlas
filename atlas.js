@@ -273,38 +273,48 @@ const PORTRAIT_CSS = `
   page-break-after: always;
   break-after: page;
   display: grid;
-  grid-template-columns: 4.82in 2.78in;
-  grid-template-rows: 5.3in 4.8in;
-  gap: 0.1in 0.18in;
-  padding: 0.06in;
+  grid-template-columns: 1fr;
+  grid-template-rows: 4fr 3fr 1fr;
+  gap: 0.09in 0;
+  padding: 0.04in;
   overflow: hidden;
 }
 
-.main-photo { grid-column: 1 / -1; grid-row: 1; }
+.main-photo { grid-column: 1; grid-row: 1; }
 
 .map { grid-column: 1; grid-row: 2; width: 100%; height: 100%; }
 
-.right-panel {
-  grid-column: 2;
-  grid-row: 2;
+.bottom-strip {
+  grid-column: 1;
+  grid-row: 3;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  align-items: center;
+  gap: 0.22in;
+  padding-top: 0.05in;
+  border-top: 1.5px solid #d1d5db;
   overflow: hidden;
 }
 
-.caption-block {
-  font-size: 8.5pt;
-  line-height: 1.55;
-  font-weight: 600;
-  padding-top: 0.1in;
+.bottom-title {
+  flex-shrink: 0;
+  width: 2.6in;
 }
-.caption-block div { margin-bottom: 0.02in; }
 
-.report-title { padding-bottom: 0.06in; }
-.report-h1 { font-size: 13pt; }
-.gradient-rule { width: 100%; margin: 0.06in 0 0.05in; }
-.report-h2 { font-size: 9.5pt; }`;
+.bottom-caption {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.03in 0.22in;
+  font-size: 8pt;
+  font-weight: 600;
+  align-content: center;
+  overflow: hidden;
+}
+.bottom-caption div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.report-h1 { font-size: 11pt; }
+.gradient-rule { width: 100%; margin: 0.045in 0 0.04in; }
+.report-h2 { font-size: 8.5pt; }`;
 
 /* Build one landscape page */
 function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
@@ -346,14 +356,14 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle) {
     <img src="${escHtml(item.src)}" alt="${escHtml(item.fileName)}" loading="eager">
   </div>
   <div class="map frame" id="${escHtml(item.id)}-map"></div>
-  <div class="right-panel">
-    <div class="caption-block">
+  <div class="bottom-strip">
+    <div class="bottom-title">${titleBlock}</div>
+    <div class="bottom-caption">
       <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
       <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
-      ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : ''}
-      ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
+      ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '<div></div>'}
+      ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '<div></div>'}
     </div>
-    <div class="report-title">${titleBlock}</div>
   </div>
 </section>`;
 }
