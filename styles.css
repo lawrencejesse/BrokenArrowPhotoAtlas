@@ -70,11 +70,10 @@ body {
 }
 
 .brand-mark {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--orange);
-  line-height: 1;
+  height: 44px;
+  width: auto;
   flex-shrink: 0;
+  display: block;
 }
 
 .app-title {
