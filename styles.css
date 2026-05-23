@@ -589,6 +589,56 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   color: #e87979;
 }
 
+/* --- Layout toggle ---------------------------------------- */
+.layout-toggle {
+  display: flex;
+  border: 1px solid var(--slate-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.layout-option {
+  cursor: pointer;
+}
+
+.layout-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.layout-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--body-text);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.layout-option:not(:last-child) .layout-option-btn {
+  border-right: 1px solid var(--slate-border);
+}
+
+.layout-option input[type="radio"]:checked + .layout-option-btn {
+  background: var(--orange);
+  color: var(--slate-dark);
+}
+
+.layout-option:not(:has(input:checked)) .layout-option-btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--white);
+}
+
 /* --- Print instructions ----------------------------------- */
 .print-instructions {
   margin-bottom: 20px;

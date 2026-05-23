@@ -15,6 +15,7 @@ const atlasSettings = {
   subtitle: 'Aerial Photo Summary',
   labelField: 'photoNumber',
   mapZoom: 16,
+  layout: 'landscape',
   boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 }
 };
 
@@ -321,11 +322,17 @@ boundaryFileInput.addEventListener('change', () => {
   reader.readAsText(file);
 });
 
+function getLayoutValue() {
+  const checked = document.querySelector('input[name="atlas-layout"]:checked');
+  return checked ? checked.value : 'landscape';
+}
+
 gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.title    = atlasTitleInput.value.trim();
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
+  atlasSettings.layout   = getLayoutValue();
 
   const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
   generatePreviewInfo.textContent = `${included.length} photo${included.length !== 1 ? 's' : ''} with GPS will be included in the atlas.`;
@@ -342,6 +349,7 @@ generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
+  atlasSettings.layout   = getLayoutValue();
 
   const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
   if (included.length === 0) {

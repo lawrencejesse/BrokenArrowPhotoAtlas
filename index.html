@@ -132,7 +132,29 @@
                 </div>
 
                 <div class="settings-section">
-                    <h3 class="settings-section-heading">Map Settings</h3>
+                    <h3 class="settings-section-heading">Page Layout &amp; Map Settings</h3>
+
+                    <div class="field-group">
+                        <label class="field-label">Page orientation</label>
+                        <div class="layout-toggle">
+                            <label class="layout-option">
+                                <input type="radio" name="atlas-layout" id="layout-landscape" value="landscape" checked>
+                                <span class="layout-option-btn">
+                                    <svg width="16" height="13" viewBox="0 0 16 13" fill="none"><rect x="0.5" y="0.5" width="15" height="12" rx="1" stroke="currentColor"/><line x1="7" y1="0.5" x2="7" y2="12.5" stroke="currentColor" stroke-dasharray="2 1.5"/></svg>
+                                    Landscape
+                                </span>
+                            </label>
+                            <label class="layout-option">
+                                <input type="radio" name="atlas-layout" id="layout-portrait" value="portrait">
+                                <span class="layout-option-btn">
+                                    <svg width="13" height="16" viewBox="0 0 13 16" fill="none"><rect x="0.5" y="0.5" width="12" height="15" rx="1" stroke="currentColor"/><line x1="0.5" y1="8" x2="12.5" y2="8" stroke="currentColor" stroke-dasharray="2 1.5"/></svg>
+                                    Portrait
+                                </span>
+                            </label>
+                        </div>
+                        <p class="field-hint">Landscape puts the map beside the photo. Portrait puts a large photo on top with the map and caption below.</p>
+                    </div>
+
                     <div class="field-group zoom-field">
                         <label class="field-label" for="map-zoom">Map zoom level: <span id="zoom-display" class="zoom-value">16</span></label>
                         <input type="range" id="map-zoom" class="zoom-slider" min="14" max="18" value="16" step="1">

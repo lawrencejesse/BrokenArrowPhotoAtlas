@@ -141,53 +141,9 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
-  const titleSafe    = escHtml(settings.title    || '');
-  const subtitleSafe = escHtml(settings.subtitle || '');
-  const hasTitle     = titleSafe.length > 0;
-
-  const pages = photoData.map(item => {
-    const cap = item.caption;
-    return `
-<section class="photo-page">
-  <div class="main-photo frame">
-    <img src="${escHtml(item.src)}" alt="${escHtml(item.fileName)}" loading="eager">
-  </div>
-  <div class="caption-block">
-    <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
-    <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
-    ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : ''}
-    ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
-  </div>
-  <div class="report-title">
-    ${hasTitle
-      ? `<h1 class="report-h1">${titleSafe}</h1>
-         <div class="gradient-rule"></div>
-         <h2 class="report-h2">${subtitleSafe}</h2>`
-      : `<div class="gradient-rule"></div>
-         <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>`
-    }
-  </div>
-  <div class="map frame" id="${escHtml(item.id)}-map"></div>
-</section>`;
-  }).join('\n');
-
-  const boundaryJson = boundary ? safeJson(boundary) : 'null';
-  const photoJson    = safeJson(photoData);
-  const northJson    = safeJson(northSvg);
-  const photoSvgJson = safeJson(photoSvg);
-  const zoomVal      = parseInt(settings.mapZoom, 10) || 16;
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${titleSafe || 'Photo Log'}</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
-@page { size: Letter landscape; margin: 0.35in; }
+/* Shared CSS: arrows, frame, fonts, screen preview */
+const SHARED_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -197,30 +153,12 @@ body {
   font-family: 'Inter', Arial, Helvetica, sans-serif;
 }
 
-.photo-page {
-  width: 10.3in;
-  height: 7.75in;
-  page-break-after: always;
-  break-after: page;
-  display: grid;
-  grid-template-columns: 5.92in 3.9in;
-  grid-template-rows: 4.3in 0.4in 2.55in;
-  gap: 0.16in 0.22in;
-  padding: 0.08in;
-  overflow: hidden;
-  position: relative;
-}
-
 .frame {
   border: 1.5px solid #222;
   background: #e5e7eb;
   overflow: hidden;
 }
 
-.main-photo {
-  grid-column: 1;
-  grid-row: 1;
-}
 .main-photo img {
   width: 100%;
   height: 100%;
@@ -228,56 +166,28 @@ body {
   display: block;
 }
 
-.caption-block {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: start;
-  font-size: 9.5pt;
-  line-height: 1.35;
-  font-weight: 600;
-  padding-top: 0.04in;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.25in;
-}
-.caption-block div { white-space: nowrap; }
 .cap-label { font-weight: 800; }
 
-.report-title {
-  grid-column: 1;
-  grid-row: 3;
-  align-self: end;
-  padding-bottom: 0.04in;
-}
 .report-h1 {
   margin: 0;
   color: #BF9555;
-  font-size: 20pt;
-  line-height: 1.1;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: -0.01em;
+  line-height: 1.1;
 }
-.gradient-rule {
-  width: 3.5in;
-  height: 2.5px;
-  margin: 0.07in 0 0.06in;
-  background: linear-gradient(90deg, #5E9B72, #5E8B8A, #7E6D94, #947068, #BF9555);
-}
+
 .report-h2 {
   margin: 0;
   color: #1E2430;
-  font-size: 13pt;
-  line-height: 1.1;
   font-weight: 700;
   text-transform: uppercase;
+  line-height: 1.15;
 }
 
-.map {
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  width: 100%;
-  height: 100%;
+.gradient-rule {
+  height: 2.5px;
+  background: linear-gradient(90deg, #5E9B72, #5E8B8A, #7E6D94, #947068, #BF9555);
 }
 
 .leaflet-control-attribution { font-size: 6px !important; }
@@ -307,7 +217,174 @@ body {
     background: #fff;
     box-shadow: 0 8px 32px rgba(0,0,0,0.22);
   }
+}`;
+
+/* Landscape layout CSS */
+const LANDSCAPE_CSS = `
+@page { size: Letter landscape; margin: 0.35in; }
+
+.photo-page {
+  width: 10.3in;
+  height: 7.75in;
+  page-break-after: always;
+  break-after: page;
+  display: grid;
+  grid-template-columns: 5.92in 3.9in;
+  grid-template-rows: 4.3in 0.42in 2.68in;
+  gap: 0.14in 0.22in;
+  padding: 0.06in;
+  overflow: hidden;
 }
+
+.main-photo { grid-column: 1; grid-row: 1; }
+
+.caption-block {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+  font-size: 9.5pt;
+  line-height: 1.3;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.28in;
+}
+.caption-block div { white-space: nowrap; }
+
+.report-title {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  padding-bottom: 0.05in;
+}
+.report-h1 { font-size: 19pt; }
+.gradient-rule { width: 3.5in; margin: 0.07in 0 0.06in; }
+.report-h2 { font-size: 12.5pt; }
+
+.map { grid-column: 2; grid-row: 1 / span 3; width: 100%; height: 100%; }`;
+
+/* Portrait layout CSS */
+const PORTRAIT_CSS = `
+@page { size: Letter portrait; margin: 0.35in; }
+
+.photo-page {
+  width: 7.8in;
+  height: 10.3in;
+  page-break-after: always;
+  break-after: page;
+  display: grid;
+  grid-template-columns: 4.82in 2.78in;
+  grid-template-rows: 5.3in 4.8in;
+  gap: 0.1in 0.18in;
+  padding: 0.06in;
+  overflow: hidden;
+}
+
+.main-photo { grid-column: 1 / -1; grid-row: 1; }
+
+.map { grid-column: 1; grid-row: 2; width: 100%; height: 100%; }
+
+.right-panel {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.caption-block {
+  font-size: 8.5pt;
+  line-height: 1.55;
+  font-weight: 600;
+  padding-top: 0.1in;
+}
+.caption-block div { margin-bottom: 0.02in; }
+
+.report-title { padding-bottom: 0.06in; }
+.report-h1 { font-size: 13pt; }
+.gradient-rule { width: 100%; margin: 0.06in 0 0.05in; }
+.report-h2 { font-size: 9.5pt; }`;
+
+/* Build one landscape page */
+function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
+  const cap = item.caption;
+  const titleBlock = hasTitle
+    ? `<h1 class="report-h1">${titleSafe}</h1>
+       <div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe}</h2>`
+    : `<div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>`;
+  return `
+<section class="photo-page">
+  <div class="main-photo frame">
+    <img src="${escHtml(item.src)}" alt="${escHtml(item.fileName)}" loading="eager">
+  </div>
+  <div class="caption-block">
+    <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
+    <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
+    ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : ''}
+    ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
+  </div>
+  <div class="report-title">${titleBlock}</div>
+  <div class="map frame" id="${escHtml(item.id)}-map"></div>
+</section>`;
+}
+
+/* Build one portrait page */
+function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle) {
+  const cap = item.caption;
+  const titleBlock = hasTitle
+    ? `<h1 class="report-h1">${titleSafe}</h1>
+       <div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe}</h2>`
+    : `<div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>`;
+  return `
+<section class="photo-page">
+  <div class="main-photo frame">
+    <img src="${escHtml(item.src)}" alt="${escHtml(item.fileName)}" loading="eager">
+  </div>
+  <div class="map frame" id="${escHtml(item.id)}-map"></div>
+  <div class="right-panel">
+    <div class="caption-block">
+      <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
+      <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
+      ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : ''}
+      ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
+    </div>
+    <div class="report-title">${titleBlock}</div>
+  </div>
+</section>`;
+}
+
+function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
+  const titleSafe    = escHtml(settings.title    || '');
+  const subtitleSafe = escHtml(settings.subtitle || '');
+  const hasTitle     = titleSafe.length > 0;
+  const isPortrait   = settings.layout === 'portrait';
+
+  const layoutCss = isPortrait ? PORTRAIT_CSS : LANDSCAPE_CSS;
+  const buildPage = isPortrait ? buildPortraitPage : buildLandscapePage;
+
+  const pages = photoData.map(item =>
+    buildPage(item, titleSafe, subtitleSafe, hasTitle)
+  ).join('\n');
+
+  const boundaryJson = boundary ? safeJson(boundary) : 'null';
+  const photoJson    = safeJson(photoData);
+  const northJson    = safeJson(northSvg);
+  const photoSvgJson = safeJson(photoSvg);
+  const zoomVal      = parseInt(settings.mapZoom, 10) || 16;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${titleSafe || 'Photo Log'}</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>${SHARED_CSS}${layoutCss}
 </style>
 </head>
 <body>
@@ -353,7 +430,6 @@ ${pages}
     }).setView([item.lat, item.lon], mapZoom);
 
     imageryLayer().addTo(map);
-
     L.marker([item.lat, item.lon], { icon: arrowIcon(item.yaw) }).addTo(map);
 
     if (boundaryData) {
@@ -374,8 +450,8 @@ ${pages}
 
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    setTimeout(function() { map.invalidateSize(); }, 100);
-    setTimeout(function() { map.invalidateSize(); }, 600);
+    setTimeout(function() { map.invalidateSize(); }, 150);
+    setTimeout(function() { map.invalidateSize(); }, 700);
   }
 
   function initAll() {
