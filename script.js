@@ -335,9 +335,9 @@ gotoGenerateBtn.addEventListener('click', () => {
   step4El.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-/* ---- Atlas generation placeholder (wired in next task) --- */
+/* ---- Atlas generation ------------------------------------ */
 
-generateAtlasBtn.addEventListener('click', () => {
+generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.title    = atlasTitleInput.value.trim();
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
@@ -351,16 +351,30 @@ generateAtlasBtn.addEventListener('click', () => {
   }
   generateError.classList.add('hidden');
 
+  if (typeof buildAtlas === 'function') {
+    generateAtlasBtn.disabled = true;
+    generateAtlasBtn.textContent = 'Building atlas…';
+
+    try {
+      await buildAtlas(included, atlasSettings, boundaryGeoJson);
+    } catch (err) {
+      console.error('Atlas generation error', err);
+      generateError.textContent = `Atlas generation failed: ${err.message}`;
+      generateError.classList.remove('hidden');
+      generateAtlasBtn.disabled = false;
+      generateAtlasBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Generate Printable Atlas`;
+      return;
+    }
+
+    generateAtlasBtn.disabled = false;
+    generateAtlasBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Regenerate Atlas`;
+  }
+
   const step5El = document.getElementById('step-5');
   step5El.classList.remove('hidden');
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;
-
-  if (typeof buildAtlas === 'function') {
-    buildAtlas(included, atlasSettings, boundaryGeoJson);
-  } else {
-    step5El.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  step5El.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 /* ---- CSV export ------------------------------------------ */

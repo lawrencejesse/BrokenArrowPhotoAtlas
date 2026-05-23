@@ -589,6 +589,45 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   color: #e87979;
 }
 
+/* --- Print instructions ----------------------------------- */
+.print-instructions {
+  margin-bottom: 20px;
+}
+
+.print-instructions-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(94, 155, 114, 0.08);
+  border: 1px solid rgba(94, 155, 114, 0.25);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--body-text);
+  line-height: 1.55;
+}
+
+.print-instructions-inner svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--green);
+}
+
+.print-instructions-inner strong {
+  color: var(--white);
+}
+
+.print-instructions-inner kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: var(--slate-dark);
+  border: 1px solid var(--slate-border);
+  border-radius: 3px;
+  color: var(--white);
+}
+
 /* --- Export row ------------------------------------------- */
 .export-row {
   display: flex;

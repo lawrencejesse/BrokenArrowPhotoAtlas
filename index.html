@@ -183,9 +183,22 @@
             <section class="step-card hidden" id="step-5">
                 <div class="step-label">Step 5</div>
                 <h2 class="step-heading">Export</h2>
-                <p class="step-desc">Download your data in standard formats. CSV and GeoJSON include all fields and comments from the review table.</p>
+                <p class="step-desc">Your atlas is ready. Download data exports or save the printable atlas as an HTML file you can convert to PDF using your browser's print dialog.</p>
+
+                <div id="print-instructions" class="print-instructions hidden">
+                    <div class="print-instructions-inner">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>
+                        <div>
+                            <strong>To save as PDF:</strong> In the atlas tab, press <kbd>Ctrl+P</kbd> (or <kbd>⌘P</kbd> on Mac) &rarr; set orientation to <strong>Landscape</strong> &rarr; enable <strong>Background graphics</strong> &rarr; Save as PDF.
+                        </div>
+                    </div>
+                </div>
 
                 <div class="export-row">
+                    <button class="btn btn-primary" id="download-atlas-html" disabled>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Printable HTML
+                    </button>
                     <button class="btn btn-secondary" id="download-csv" disabled>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download CSV
@@ -213,5 +226,6 @@
 
     </div>
     <script src="script.js"></script>
+    <script src="atlas.js"></script>
 </body>
 </html>
