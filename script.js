@@ -1,151 +1,452 @@
-document.getElementById('extract-btn').addEventListener('click', extractExifData);
-document.getElementById('download-csv').addEventListener('click', downloadCSV);
-document.getElementById('download-geojson').addEventListener('click', downloadGeoJSON);
+/* ============================================================
+   Photo Log Atlas Builder — Broken Arrow Consulting
+   Browser-side EXIF extraction, review table, and exports.
+   ============================================================ */
 
-async function extractExifData() {
-    const files = document.getElementById('file-input').files;
-    const folderPath = document.getElementById('folder-path').value;
-    const tbody = document.getElementById('exif-table').querySelector('tbody');
-    tbody.innerHTML = '';
-    const allExifKeys = new Set();
-    let photoNumber = 1;
+'use strict';
 
-    const exifDataArray = await Promise.all(Array.from(files).map(async (file) => {
-        if (!file.type.startsWith('image/')) {
-            return null;
-        }
-        try {
-            const exifData = await exifr.parse(file, true);
-            for (const key in exifData) {
-                allExifKeys.add(key);
-            }
-            const date = getPhotoTakenDate(exifData);
-            const formattedDate = date ? formatDate(date) : '';
-            const absolutePath = folderPath ? `${folderPath}/${file.webkitRelativePath.replace(/^.*[\\\/]/, '')}` : file.webkitRelativePath;
-            return {
-                photoNumber: photoNumber++,
-                fileName: file.name,
-                date: formattedDate,
-                comment: '',
-                path: absolutePath,
-                ...exifData
-            };
-        } catch (error) {
-            console.error(`Error parsing EXIF data for file ${file.name}:`, error);
-            return null;
-        }
-    }));
+/* ---- State ----------------------------------------------- */
 
-    const filteredExifData = exifDataArray.filter(data => data !== null);
+let photos = [];
+let boundaryGeoJson = null;
 
-    if (filteredExifData.length === 0) {
-        alert('No valid image files selected.');
-        return;
+const atlasSettings = {
+  title: '',
+  subtitle: 'Aerial Photo Summary',
+  labelField: 'photoNumber',
+  mapZoom: 16,
+  boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 }
+};
+
+/* ---- DOM refs -------------------------------------------- */
+
+const photoFilesInput   = document.getElementById('photo-files');
+const photoFolderInput  = document.getElementById('photo-folder');
+const qgisPathInput     = document.getElementById('qgis-path');
+const extractBtn        = document.getElementById('extract-btn');
+const selectionSummary  = document.getElementById('selection-summary');
+const extractStatus     = document.getElementById('extract-status');
+const extractWarnings   = document.getElementById('extract-warnings');
+
+const step2El           = document.getElementById('step-2');
+const step3El           = document.getElementById('step-3');
+const step4El           = document.getElementById('step-4');
+
+const reviewTbody       = document.getElementById('review-tbody');
+const includedCountEl   = document.getElementById('included-count');
+const selectAllBtn      = document.getElementById('select-all-btn');
+const deselectAllBtn    = document.getElementById('deselect-all-btn');
+const gotoSettingsBtn   = document.getElementById('goto-settings-btn');
+
+const atlasTitleInput   = document.getElementById('atlas-title');
+const atlasSubtitleInput= document.getElementById('atlas-subtitle');
+const labelFieldSelect  = document.getElementById('label-field');
+const mapZoomSlider     = document.getElementById('map-zoom');
+const zoomDisplay       = document.getElementById('zoom-display');
+const boundaryFileInput = document.getElementById('boundary-file');
+const boundaryStatus    = document.getElementById('boundary-status');
+const gotoGenerateBtn   = document.getElementById('goto-generate-btn');
+
+const generatePreviewInfo = document.getElementById('generate-preview-info');
+const generateAtlasBtn  = document.getElementById('generate-atlas-btn');
+const generateError     = document.getElementById('generate-error');
+
+const downloadCsvBtn    = document.getElementById('download-csv');
+const downloadGeojsonBtn= document.getElementById('download-geojson');
+
+/* ---- File selection -------------------------------------- */
+
+let pendingFiles = [];
+
+function onFilesChosen(fileList) {
+  const images = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  pendingFiles = images;
+  if (images.length === 0) {
+    selectionSummary.textContent = 'No image files found in selection.';
+    selectionSummary.classList.remove('hidden');
+    extractBtn.disabled = true;
+    return;
+  }
+  selectionSummary.textContent = `${images.length} image file${images.length !== 1 ? 's' : ''} selected.`;
+  selectionSummary.classList.remove('hidden');
+  extractBtn.disabled = false;
+}
+
+photoFilesInput.addEventListener('change', () => onFilesChosen(photoFilesInput.files));
+photoFolderInput.addEventListener('change', () => onFilesChosen(photoFolderInput.files));
+
+/* ---- EXIF extraction ------------------------------------- */
+
+function asFloat(val, fallback = null) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = parseFloat(val);
+  return isNaN(n) ? fallback : n;
+}
+
+function extractGps(exif) {
+  let lat = null;
+  let lon = null;
+
+  if (typeof exif.latitude === 'number') lat = exif.latitude;
+  if (typeof exif.longitude === 'number') lon = exif.longitude;
+
+  if (lat === null && exif.GPSLatitude) {
+    const raw = exif.GPSLatitude;
+    if (Array.isArray(raw) && raw.length === 3) {
+      lat = raw[0] + raw[1] / 60 + raw[2] / 3600;
+      if (exif.GPSLatitudeRef === 'S') lat = -lat;
+    } else {
+      lat = asFloat(raw);
     }
+  }
+  if (lon === null && exif.GPSLongitude) {
+    const raw = exif.GPSLongitude;
+    if (Array.isArray(raw) && raw.length === 3) {
+      lon = raw[0] + raw[1] / 60 + raw[2] / 3600;
+      if (exif.GPSLongitudeRef === 'W') lon = -lon;
+    } else {
+      lon = asFloat(raw);
+    }
+  }
 
-    const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', ...Array.from(allExifKeys).sort()];
-    const thead = document.getElementById('table-headers');
-    thead.innerHTML = '';
-    headers.forEach(header => {
-        const th = document.createElement('th');
-        th.textContent = header;
-        thead.appendChild(th);
+  return { lat, lon };
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  try {
+    const dt = d instanceof Date ? d : new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    const day = String(dt.getDate()).padStart(2, '0');
+    const month = dt.toLocaleString('en-GB', { month: 'short' });
+    const year = dt.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch { return String(d); }
+}
+
+function getDate(exif) {
+  for (const key of ['DateTimeOriginal', 'CreateDate', 'DateCreated']) {
+    if (exif[key]) return formatDate(exif[key]);
+  }
+  return '';
+}
+
+extractBtn.addEventListener('click', async () => {
+  if (!pendingFiles.length) return;
+
+  extractBtn.disabled = true;
+  extractBtn.textContent = 'Extracting…';
+  extractStatus.classList.add('hidden');
+  extractWarnings.classList.remove('hidden');
+  extractWarnings.classList.add('hidden');
+
+  const qgisBase = qgisPathInput.value.trim().replace(/[\\\/]+$/, '');
+
+  const results = await Promise.all(pendingFiles.map(async (file, idx) => {
+    try {
+      const exif = await exifr.parse(file, true) || {};
+      const { lat, lon } = extractGps(exif);
+      const relAlt = asFloat(exif.RelativeAltitude ?? exif.GPSAltitude ?? exif.AbsoluteAltitude);
+      const yaw = asFloat(exif.FlightYawDegree ?? exif.GimbalYawDegree);
+      const gimbalYaw = asFloat(exif.GimbalYawDegree);
+      const path = qgisBase ? `${qgisBase}/${file.name}` : file.name;
+      return {
+        include: true,
+        photoNumber: idx + 1,
+        fileName: file.name,
+        date: getDate(exif),
+        comment: '',
+        objectUrl: URL.createObjectURL(file),
+        localQgisPath: path,
+        latitude: lat,
+        longitude: lon,
+        relativeAltitude: relAlt,
+        flightYawDegree: yaw,
+        gimbalYawDegree: gimbalYaw,
+        exif
+      };
+    } catch (err) {
+      console.warn('EXIF parse error', file.name, err);
+      return {
+        include: true,
+        photoNumber: idx + 1,
+        fileName: file.name,
+        date: '',
+        comment: '',
+        objectUrl: URL.createObjectURL(file),
+        localQgisPath: qgisBase ? `${qgisBase}/${file.name}` : file.name,
+        latitude: null,
+        longitude: null,
+        relativeAltitude: null,
+        flightYawDegree: null,
+        gimbalYawDegree: null,
+        exif: {}
+      };
+    }
+  }));
+
+  photos = results;
+
+  const total   = photos.length;
+  const gps     = photos.filter(p => p.latitude !== null && p.longitude !== null).length;
+  const yaw     = photos.filter(p => p.flightYawDegree !== null).length;
+  const noGps   = total - gps;
+  const noYaw   = yaw < total ? total - yaw : 0;
+
+  extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} have GPS coordinates. ${yaw} have flight yaw.`;
+  extractStatus.classList.remove('hidden');
+
+  const warnings = [];
+  if (noGps > 0) warnings.push(`${noGps} photo${noGps !== 1 ? 's' : ''} have no GPS — they will be excluded from the atlas map.`);
+  if (noYaw > 0) warnings.push(`${noYaw} photo${noYaw !== 1 ? 's' : ''} have no yaw — their atlas markers will point north.`);
+  if (warnings.length) {
+    extractWarnings.innerHTML = warnings.map(w => `<div>${w}</div>`).join('');
+    extractWarnings.classList.remove('hidden');
+  }
+
+  extractBtn.textContent = 'Re-extract EXIF';
+  extractBtn.disabled = false;
+
+  populateLabelFieldDropdown();
+  renderReviewTable();
+  step2El.classList.remove('hidden');
+  step2El.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  downloadCsvBtn.disabled = false;
+  downloadGeojsonBtn.disabled = false;
+});
+
+/* ---- Review table ---------------------------------------- */
+
+function updateIncludedCount() {
+  const n = photos.filter(p => p.include).length;
+  includedCountEl.textContent = `${n} of ${photos.length} photos included`;
+}
+
+function renderReviewTable() {
+  reviewTbody.innerHTML = '';
+  photos.forEach((photo, i) => {
+    const tr = document.createElement('tr');
+    if (!photo.include) tr.classList.add('excluded');
+
+    const fmtCoord = v => v !== null ? v.toFixed(6) : '—';
+    const fmtNum   = v => v !== null ? v.toFixed(1) : '—';
+
+    tr.innerHTML = `
+      <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
+      <td class="col-num">${photo.photoNumber}</td>
+      <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
+      <td class="col-date">${esc(photo.date)}</td>
+      <td class="col-coord">${fmtCoord(photo.latitude)}</td>
+      <td class="col-coord">${fmtCoord(photo.longitude)}</td>
+      <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
+      <td class="col-yaw">${fmtNum(photo.flightYawDegree)}</td>
+      <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment…">${esc(photo.comment)}</textarea></td>
+    `;
+
+    tr.querySelector('.include-checkbox').addEventListener('change', e => {
+      photos[i].include = e.target.checked;
+      tr.classList.toggle('excluded', !photos[i].include);
+      updateIncludedCount();
     });
 
-    filteredExifData.forEach(data => {
-        const tr = document.createElement('tr');
-        headers.forEach(header => {
-            const td = document.createElement('td');
-            td.textContent = data[header] || '';
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
+    tr.querySelector('.comment-input').addEventListener('input', e => {
+      photos[i].comment = e.target.value;
     });
+
+    reviewTbody.appendChild(tr);
+  });
+  updateIncludedCount();
 }
 
-function getPhotoTakenDate(exifData) {
-    const dateTags = ['DateTimeOriginal', 'CreateDate', 'DateCreated'];
-    for (const tag of dateTags) {
-        if (exifData[tag]) {
-            return exifData[tag];
-        }
+selectAllBtn.addEventListener('click', () => {
+  photos.forEach(p => p.include = true);
+  renderReviewTable();
+});
+
+deselectAllBtn.addEventListener('click', () => {
+  photos.forEach(p => p.include = false);
+  renderReviewTable();
+});
+
+gotoSettingsBtn.addEventListener('click', () => {
+  step3El.classList.remove('hidden');
+  step4El.classList.remove('hidden');
+  step3El.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/* ---- Atlas settings -------------------------------------- */
+
+function populateLabelFieldDropdown() {
+  const defaultOptions = ['photoNumber', 'fileName', 'date'];
+  const exifKeys = new Set();
+  photos.forEach(p => Object.keys(p.exif || {}).forEach(k => exifKeys.add(k)));
+
+  const allOptions = [...defaultOptions];
+  exifKeys.forEach(k => { if (!defaultOptions.includes(k)) allOptions.push(k); });
+
+  labelFieldSelect.innerHTML = '';
+  allOptions.forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = key;
+    if (key === 'photoNumber') opt.selected = true;
+    labelFieldSelect.appendChild(opt);
+  });
+}
+
+mapZoomSlider.addEventListener('input', () => {
+  zoomDisplay.textContent = mapZoomSlider.value;
+  atlasSettings.mapZoom = parseInt(mapZoomSlider.value, 10);
+});
+
+boundaryFileInput.addEventListener('change', () => {
+  const file = boundaryFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const type = parsed.type;
+      if (!['FeatureCollection', 'Feature', 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString', 'GeometryCollection'].includes(type)) {
+        throw new Error(`Unexpected GeoJSON type: ${type}`);
+      }
+      boundaryGeoJson = parsed;
+      boundaryStatus.textContent = `Boundary loaded: ${file.name}`;
+      boundaryStatus.className = 'boundary-status ok';
+      boundaryStatus.classList.remove('hidden');
+    } catch (err) {
+      boundaryGeoJson = null;
+      boundaryStatus.textContent = `Could not read boundary file. Check that it is valid GeoJSON. (${err.message})`;
+      boundaryStatus.className = 'boundary-status error';
+      boundaryStatus.classList.remove('hidden');
     }
-    return null;
-}
+  };
+  reader.readAsText(file);
+});
 
-function formatDate(date) {
-    const options = { day: '2-digit', month: 'short', year: 'numeric' };
-    return new Date(date).toLocaleDateString('en-GB', options).replace(/ /g, '-');
-}
+gotoGenerateBtn.addEventListener('click', () => {
+  atlasSettings.title    = atlasTitleInput.value.trim();
+  atlasSettings.subtitle = atlasSubtitleInput.value.trim();
+  atlasSettings.labelField = labelFieldSelect.value;
+  atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
 
-function downloadCSV() {
-    const table = document.getElementById('exif-table');
-    const rows = Array.from(table.querySelectorAll('tr'));
-    const csvContent = rows.map(row => {
-        const cols = Array.from(row.querySelectorAll('th, td'));
-        return cols.map(col => col.textContent).join(',');
-    }).join('\n');
+  const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
+  generatePreviewInfo.textContent = `${included.length} photo${included.length !== 1 ? 's' : ''} with GPS will be included in the atlas.`;
+  generateError.classList.add('hidden');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'exif_data.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-}
+  step4El.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
-async function downloadGeoJSON() {
-    const exifData = getExifData();
-    const geoJson = exifDataToGeoJson(exifData);
+/* ---- Atlas generation placeholder (wired in next task) --- */
 
-    const blob = new Blob([JSON.stringify(geoJson)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'exif_data.geojson';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-}
+generateAtlasBtn.addEventListener('click', () => {
+  atlasSettings.title    = atlasTitleInput.value.trim();
+  atlasSettings.subtitle = atlasSubtitleInput.value.trim();
+  atlasSettings.labelField = labelFieldSelect.value;
+  atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
 
-function exifDataToGeoJson(exifData) {
-    const features = exifData.map(data => {
-        const longitude = parseFloat(data.longitude);
-        const latitude = parseFloat(data.latitude);
+  const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
+  if (included.length === 0) {
+    generateError.textContent = 'No included photos have GPS coordinates. Check that your photos are geotagged and at least one is selected.';
+    generateError.classList.remove('hidden');
+    return;
+  }
+  generateError.classList.add('hidden');
 
-        if (isNaN(longitude) || isNaN(latitude)) {
-            return null;
-        }
+  if (typeof buildAtlas === 'function') {
+    buildAtlas(included, atlasSettings, boundaryGeoJson);
+  } else {
+    generateError.textContent = 'Atlas generator is not yet loaded. This will be enabled in the next update.';
+    generateError.classList.remove('hidden');
+  }
+});
 
-        return {
-            type: "Feature",
-            properties: { ...data },
-            geometry: {
-                type: "Point",
-                coordinates: [longitude, latitude]
-            }
-        };
-    }).filter(feature => feature !== null);
+/* ---- CSV export ------------------------------------------ */
 
-    return {
-        type: "FeatureCollection",
-        features: features
+downloadCsvBtn.addEventListener('click', () => {
+  const included = photos.filter(p => p.include);
+  if (included.length === 0) { alert('No photos selected for export.'); return; }
+
+  const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', 'latitude', 'longitude', 'relativeAltitude', 'flightYawDegree'];
+  const rows = [headers.join(',')];
+
+  included.forEach(p => {
+    const cols = headers.map(h => {
+      const val = h === 'path' ? p.localQgisPath : p[h];
+      const str = val === null || val === undefined ? '' : String(val);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"` : str;
+    });
+    rows.push(cols.join(','));
+  });
+
+  triggerDownload(rows.join('\n'), 'photo_log.csv', 'text/csv');
+});
+
+/* ---- GeoJSON export -------------------------------------- */
+
+downloadGeojsonBtn.addEventListener('click', () => {
+  const included = photos.filter(p => p.include);
+  if (included.length === 0) { alert('No photos selected for export.'); return; }
+
+  const features = included.map(p => {
+    const props = {
+      photoNumber:      p.photoNumber,
+      fileName:         p.fileName,
+      date:             p.date,
+      comment:          p.comment,
+      path:             p.localQgisPath,
+      RelativeAltitude: p.relativeAltitude,
+      FlightYawDegree:  p.flightYawDegree,
+      GimbalYawDegree:  p.gimbalYawDegree
     };
+
+    const exifKeys = ['Make', 'Model', 'GPSAltitude', 'AbsoluteAltitude',
+                      'GimbalPitchDegree', 'GimbalRollDegree', 'FlightPitchDegree',
+                      'FlightRollDegree', 'CalibratedFocalLength', 'CalibratedOpticalCenterX',
+                      'CalibratedOpticalCenterY', 'DateTimeOriginal', 'ExifImageWidth',
+                      'ExifImageHeight', 'Orientation'];
+    exifKeys.forEach(k => {
+      if (p.exif[k] !== undefined && p.exif[k] !== null) props[k] = p.exif[k];
+    });
+
+    if (p.latitude !== null && p.longitude !== null) {
+      return {
+        type: 'Feature',
+        properties: props,
+        geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] }
+      };
+    }
+    return {
+      type: 'Feature',
+      properties: props,
+      geometry: null
+    };
+  });
+
+  const geojson = { type: 'FeatureCollection', features };
+  triggerDownload(JSON.stringify(geojson, null, 2), 'photo_log.geojson', 'application/json');
+});
+
+/* ---- Helpers --------------------------------------------- */
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-function getExifData() {
-    const table = document.getElementById('exif-table');
-    const rows = Array.from(table.querySelectorAll('tbody tr'));
-    const headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent);
-
-    return rows.map(row => {
-        const cols = Array.from(row.querySelectorAll('td'));
-        const data = {};
-        cols.forEach((col, index) => {
-            data[headers[index]] = col.textContent;
-        });
-        return data;
-    });
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

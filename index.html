@@ -3,45 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo EXIF Data Extractor</title>
+    <title>Photo Log Atlas Builder — Broken Arrow Consulting</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/full.umd.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Photo EXIF Data Extractor</h1>
-            <p>Select a folder of images to extract EXIF data and export it to CSV or GeoJSON</p>
-        </header>
-        <main>
-            <section class="instructions">
-                <h2>Instructions</h2>
-                <ol>
-                    <li>Choose files - browse to the folder of photos that you want to include and select upload when you are in the folder with the photos.</li>
-                    <li>Copy and paste the file path from the Windows Explorer address bar and paste it into the dialogue box.</li>
-                    <li>Click Extract EXIF Data.</li>
-                    <li>Choose to download the data as a CSV or GeoJSON file.</li>
-                </ol>
-                <p><strong>Note:</strong> The GeoJSON file is recommended as it loads into QGIS nicely and is an editable file, so the user can add comments, delete certain photos, etc.</p>
-            </section>
-            <input type="file" id="file-input" webkitdirectory directory multiple>
-            <input type="text" id="folder-path" placeholder="Paste folder path from Explorer">
-            <button id="extract-btn">Extract EXIF Data</button>
-            <button id="download-csv">Download CSV</button>
-            <button id="download-geojson">Download GeoJSON</button>
-            <div class="table-container">
-                <table id="exif-table">
-                    <thead>
-                        <tr id="table-headers"></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+    <div class="app-wrapper">
+
+        <header class="app-header">
+            <div class="header-inner">
+                <div class="header-brand">
+                    <span class="brand-mark">&#8599;</span>
+                    <div>
+                        <h1 class="app-title">Photo Log Atlas Builder</h1>
+                        <p class="app-subtitle">Create a printable map-based photo log from geotagged drone or field photos.</p>
+                    </div>
+                </div>
+                <a class="header-link" href="https://brokenarrow.pro" target="_blank" rel="noopener">brokenarrow.pro</a>
             </div>
+            <div class="gradient-bar"></div>
+        </header>
+
+        <main class="app-main">
+
+            <section class="step-card" id="step-1">
+                <div class="step-label">Step 1</div>
+                <h2 class="step-heading">Select Photos</h2>
+                <p class="step-desc">Choose individual geotagged photos or an entire folder. Photos are processed locally in your browser and are never uploaded to a server.</p>
+
+                <div class="input-row">
+                    <label class="btn btn-primary" for="photo-files">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Select Photos
+                    </label>
+                    <input type="file" id="photo-files" accept="image/*" multiple style="display:none">
+
+                    <label class="btn btn-secondary" for="photo-folder">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        Select Folder
+                    </label>
+                    <input type="file" id="photo-folder" webkitdirectory directory multiple style="display:none">
+                </div>
+
+                <div id="selection-summary" class="selection-summary hidden"></div>
+
+                <details class="advanced-section">
+                    <summary class="advanced-toggle">Advanced: QGIS photo path</summary>
+                    <div class="advanced-body">
+                        <label class="field-label" for="qgis-path">Local folder path for QGIS photo links</label>
+                        <input type="text" id="qgis-path" class="text-input" placeholder="e.g. C:\Users\you\Photos\ProjectName">
+                        <p class="field-hint">Optional. Only needed if you want the downloaded GeoJSON to include full local photo paths for use in QGIS photo logs. Not required for atlas generation.</p>
+                    </div>
+                </details>
+
+                <button class="btn btn-primary btn-extract" id="extract-btn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Extract EXIF
+                </button>
+
+                <div id="extract-status" class="extract-status hidden"></div>
+                <div id="extract-warnings" class="extract-warnings hidden"></div>
+            </section>
+
+            <section class="step-card hidden" id="step-2">
+                <div class="step-label">Step 2</div>
+                <h2 class="step-heading">Review Photo Log</h2>
+                <p class="step-desc">Check the extracted data. Edit comments — they will appear in your atlas and exports. Uncheck photos to exclude them from the atlas.</p>
+
+                <div class="table-toolbar">
+                    <span id="included-count" class="included-count"></span>
+                    <div class="table-toolbar-actions">
+                        <button class="btn-ghost" id="select-all-btn">Select all</button>
+                        <button class="btn-ghost" id="deselect-all-btn">Deselect all</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="review-table">
+                        <thead>
+                            <tr>
+                                <th class="col-include">Include</th>
+                                <th class="col-num">Photo #</th>
+                                <th class="col-name">File Name</th>
+                                <th class="col-date">Date</th>
+                                <th class="col-coord">Latitude</th>
+                                <th class="col-coord">Longitude</th>
+                                <th class="col-alt">Altitude (m)</th>
+                                <th class="col-yaw">Yaw (°)</th>
+                                <th class="col-comment">Comment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="review-tbody"></tbody>
+                    </table>
+                </div>
+
+                <button class="btn btn-primary btn-continue" id="goto-settings-btn">
+                    Continue to Atlas Settings
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </section>
+
+            <section class="step-card hidden" id="step-3">
+                <div class="step-label">Step 3</div>
+                <h2 class="step-heading">Atlas Settings</h2>
+                <p class="step-desc">Configure how your photo atlas will look. These settings apply to all pages.</p>
+
+                <div class="settings-grid">
+                    <div class="field-group">
+                        <label class="field-label" for="atlas-title">Atlas title</label>
+                        <input type="text" id="atlas-title" class="text-input" placeholder="e.g. Knutson NW-23-15-33W1M">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="atlas-subtitle">Subtitle</label>
+                        <input type="text" id="atlas-subtitle" class="text-input" placeholder="e.g. 2025 Aerial Photo Summary" value="Aerial Photo Summary">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="label-field">Photo label field</label>
+                        <select id="label-field" class="select-input">
+                            <option value="photoNumber">Photo Number</option>
+                            <option value="fileName">File Name</option>
+                            <option value="date">Date</option>
+                        </select>
+                        <p class="field-hint">This field is used as the "PHOTO:" label in the atlas caption.</p>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3 class="settings-section-heading">Map Settings</h3>
+                    <div class="field-group zoom-field">
+                        <label class="field-label" for="map-zoom">Map zoom level: <span id="zoom-display" class="zoom-value">16</span></label>
+                        <input type="range" id="map-zoom" class="zoom-slider" min="14" max="18" value="16" step="1">
+                        <div class="zoom-labels">
+                            <span>14 — More context</span>
+                            <span>18 — More detail</span>
+                        </div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label" for="boundary-file">Optional project boundary <span class="field-optional">(GeoJSON)</span></label>
+                        <label class="btn btn-ghost-upload" for="boundary-file">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Upload boundary file
+                        </label>
+                        <input type="file" id="boundary-file" accept=".geojson,.json" style="display:none">
+                        <div id="boundary-status" class="boundary-status hidden"></div>
+                        <p class="field-hint">Upload a lease boundary, pasture, ROW, or project area polygon. It will appear on every atlas map page.</p>
+                    </div>
+
+                    <div class="privacy-notice">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>Satellite basemap tiles are requested from Esri's servers around your photo locations. For sensitive client work, be aware that photo coordinates are sent to the tile provider to load the imagery.</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-continue" id="goto-generate-btn">
+                    Continue to Generate
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </section>
+
+            <section class="step-card hidden" id="step-4">
+                <div class="step-label">Step 4</div>
+                <h2 class="step-heading">Generate Atlas</h2>
+                <p class="step-desc">Build your printable photo atlas. Each included photo gets its own page with a satellite map, caption, and location marker.</p>
+
+                <div id="generate-preview-info" class="generate-preview-info"></div>
+
+                <button class="btn btn-primary btn-generate" id="generate-atlas-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    Generate Printable Atlas
+                </button>
+
+                <div id="generate-error" class="generate-error hidden"></div>
+            </section>
+
+            <section class="step-card" id="step-5">
+                <div class="step-label">Step 5</div>
+                <h2 class="step-heading">Export</h2>
+                <p class="step-desc">Download your data in standard formats. CSV and GeoJSON include all fields and comments from the review table.</p>
+
+                <div class="export-row">
+                    <button class="btn btn-secondary" id="download-csv" disabled>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download CSV
+                    </button>
+                    <button class="btn btn-secondary" id="download-geojson" disabled>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download GeoJSON
+                    </button>
+                </div>
+            </section>
+
         </main>
-        <footer>
-            <p>&copy; This is Jesse Lawrence Feeling Optimistic on AI and The Future.</p>
+
+        <footer class="app-footer">
+            <div class="footer-inner">
+                <div class="gradient-bar footer-gradient"></div>
+                <div class="footer-content">
+                    <p class="footer-cta">Need a client-ready PDF with custom branding, basemap, or full report appendix?
+                        <a href="https://brokenarrow.pro" target="_blank" rel="noopener" class="footer-link">Hire Broken Arrow.</a>
+                    </p>
+                    <p class="footer-copy">&copy; 2025 Broken Arrow Consulting Inc. &mdash; Remote Sensing &middot; Environmental Intelligence &middot; GIS Modernization</p>
+                </div>
+            </div>
         </footer>
+
     </div>
     <script src="script.js"></script>
 </body>
