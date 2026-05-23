@@ -288,29 +288,37 @@ const PORTRAIT_CSS = `
   grid-column: 1;
   grid-row: 3;
   display: flex;
-  align-items: center;
-  gap: 0.22in;
+  align-items: stretch;
+  gap: 0;
   padding-top: 0.05in;
-  border-top: 1.5px solid #d1d5db;
+  border-top: 2px solid #d1d5db;
   overflow: hidden;
 }
 
 .bottom-title {
   flex-shrink: 0;
-  width: 2.6in;
+  width: 2.5in;
+  padding-right: 0.18in;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .bottom-caption {
   flex: 1;
+  border-left: 1.5px solid #d1d5db;
+  padding-left: 0.18in;
   display: grid;
   grid-template-columns: auto auto;
-  gap: 0.03in 0.22in;
-  font-size: 8pt;
-  font-weight: 600;
+  grid-template-rows: auto auto;
+  gap: 0.05in 0.3in;
+  font-size: 8.5pt;
+  font-weight: 500;
   align-content: center;
   overflow: hidden;
 }
 .bottom-caption div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bottom-caption .cap-label { color: #BF9555; font-weight: 800; }
 
 .report-h1 { font-size: 11pt; }
 .gradient-rule { width: 100%; margin: 0.045in 0 0.04in; }
