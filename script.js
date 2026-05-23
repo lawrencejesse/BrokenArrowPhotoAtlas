@@ -149,7 +149,7 @@ extractBtn.addEventListener('click', async () => {
       const relAlt = asFloat(exif.RelativeAltitude ?? exif.GPSAltitude ?? exif.AbsoluteAltitude);
       const yaw = asFloat(exif.FlightYawDegree ?? exif.GimbalYawDegree);
       const gimbalYaw = asFloat(exif.GimbalYawDegree);
-      const path = qgisBase ? `${qgisBase}/${file.name}` : file.name;
+      const path = qgisBase ? `${qgisBase}/${file.name}` : null;
       return {
         include: true,
         photoNumber: idx + 1,
@@ -210,6 +210,7 @@ extractBtn.addEventListener('click', async () => {
   populateLabelFieldDropdown();
   renderReviewTable();
   step2El.classList.remove('hidden');
+  document.getElementById('step-5').classList.remove('hidden');
   step2El.scrollIntoView({ behavior: 'smooth', block: 'start' });
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;
@@ -270,7 +271,6 @@ deselectAllBtn.addEventListener('click', () => {
 
 gotoSettingsBtn.addEventListener('click', () => {
   step3El.classList.remove('hidden');
-  step4El.classList.remove('hidden');
   step3El.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -334,6 +334,7 @@ gotoGenerateBtn.addEventListener('click', () => {
   generatePreviewInfo.textContent = `${included.length} photo${included.length !== 1 ? 's' : ''} with GPS will be included in the atlas.`;
   generateError.classList.add('hidden');
 
+  step4El.classList.remove('hidden');
   step4El.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -395,7 +396,7 @@ downloadGeojsonBtn.addEventListener('click', () => {
       fileName:         p.fileName,
       date:             p.date,
       comment:          p.comment,
-      path:             p.localQgisPath,
+      ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
       RelativeAltitude: p.relativeAltitude,
       FlightYawDegree:  p.flightYawDegree,
       GimbalYawDegree:  p.gimbalYawDegree
