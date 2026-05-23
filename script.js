@@ -210,10 +210,7 @@ extractBtn.addEventListener('click', async () => {
   populateLabelFieldDropdown();
   renderReviewTable();
   step2El.classList.remove('hidden');
-  document.getElementById('step-5').classList.remove('hidden');
   step2El.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  downloadCsvBtn.disabled = false;
-  downloadGeojsonBtn.disabled = false;
 });
 
 /* ---- Review table ---------------------------------------- */
@@ -354,11 +351,15 @@ generateAtlasBtn.addEventListener('click', () => {
   }
   generateError.classList.add('hidden');
 
+  const step5El = document.getElementById('step-5');
+  step5El.classList.remove('hidden');
+  downloadCsvBtn.disabled = false;
+  downloadGeojsonBtn.disabled = false;
+
   if (typeof buildAtlas === 'function') {
     buildAtlas(included, atlasSettings, boundaryGeoJson);
   } else {
-    generateError.textContent = 'Atlas generator is not yet loaded. This will be enabled in the next update.';
-    generateError.classList.remove('hidden');
+    step5El.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 });
 
