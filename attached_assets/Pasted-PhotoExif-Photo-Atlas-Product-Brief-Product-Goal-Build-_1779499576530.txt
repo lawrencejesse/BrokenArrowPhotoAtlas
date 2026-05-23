@@ -1,0 +1,253 @@
+PhotoExif + Photo Atlas Product Brief
+Product Goal
+Build a browser-based tool that turns geotagged field/drone photos into a clean, printable, map-based photo log.
+
+The user should be able to:
+
+Upload/select geotagged photos.
+Extract EXIF metadata.
+Edit comments and display labels.
+Optionally upload a project boundary.
+Generate a printable HTML photo atlas.
+Print/save the atlas as PDF from the browser.
+This is intended for environmental consultants, drone operators, field inspectors, and GIS users who need fast photo logs for reports.
+
+Existing Live App
+Current Replit app:
+
+https://photoexif-jl.replit.app/
+
+Current repo:
+
+https://github.com/lawrencejesse/WebExifExtractorV3geojson
+
+Current function:
+
+User selects a folder of photos.
+App extracts EXIF metadata client-side.
+App generates a table.
+App can download CSV.
+App can download GeoJSON.
+GeoJSON includes:
+photo number
+file name
+date
+comment
+local path
+latitude / longitude
+relative altitude
+flight yaw
+full EXIF fields
+Existing Local Prototype
+A local prototype was built here:
+
+C:\Users\broke\Documents\Mapping\BrokenArrow\demos\photo_atlas_renderer
+
+Important files:
+
+render_photo_atlas.py
+Generates printable atlas HTML from EXIF GeoJSON.
+
+render_photo_atlas_pdf.mjs
+Uses Playwright/Chromium to render HTML to PDF locally.
+
+render_photo_atlas_preview.mjs
+Generates a screenshot preview of the first atlas page.
+
+assets\NorthArrow_02.svg
+North arrow icon.
+
+assets\NorthArrow_11.svg
+Photo point / yaw direction arrow icon.
+
+Demo Input
+Example GeoJSON:
+
+C:\Users\broke\Documents\Mapping\BrokenArrow\clients\Adam Knutson - Wapella\Drone Photos\Knutson-NW-23-15-33W1M - 23-Aug-2025 - Oblique\Reduced\demo set\exif_data.geojson
+
+The GeoJSON contains five demo photos and the required fields.
+
+Useful fields:
+
+photoNumber
+fileName
+date
+comment
+path
+RelativeAltitude
+FlightYawDegree
+latitude
+longitude
+geometry point coordinates
+Demo Outputs
+Generated outputs:
+
+photo_atlas.html
+Printable HTML atlas.
+
+photo_atlas.pdf
+PDF rendered from the HTML.
+
+photo_atlas_page1.png
+Preview image of first page.
+
+The prototype layout:
+
+Landscape letter page.
+One page per photo.
+Main photo on the left.
+Satellite map on the right.
+Map centered on current photo location.
+Only current photo point shown on each page.
+Photo marker rotates based on FlightYawDegree.
+North arrow shown in map.
+Caption generated from photo number, date, altitude, comment.
+Project title and subtitle at bottom left.
+Desired Replit Version
+The Replit version should fold the atlas generator into the existing EXIF web app.
+
+Do not make this a Python backend first if avoidable. Prefer a browser-first HTML/JS implementation so photos stay local and users do not need to upload large photo sets to a server.
+
+Desired User Flow
+Step 1: Select Photos
+User selects folder/photos.
+
+Use current EXIF extraction logic with exifr.
+
+Step 2: Review/Edit Photo Table
+Show editable table with columns:
+
+include checkbox
+photo number
+file name
+date
+relative altitude
+latitude
+longitude
+flight yaw
+comment field
+The comment field should be editable in the browser.
+
+Step 3: Atlas Settings
+Add controls:
+
+Project title text field
+Subtitle text field
+Photo label field dropdown
+options should be available GeoJSON/EXIF properties, e.g. photoNumber, fileName, date
+Map zoom slider
+suggested range: 14 to 18
+default: 16
+Optional boundary upload
+first support GeoJSON
+later support KML
+Boundary style
+default: yellow outline, transparent fill
+Step 4: Generate Printable HTML Atlas
+Generate a new HTML document or in-app preview with one page per included photo.
+
+Each page should include:
+
+main photo
+caption block
+satellite map
+current photo marker only
+yaw arrow
+north arrow
+optional boundary overlay
+title/subtitle
+The generated atlas should be printable with browser print/save-to-PDF.
+
+Step 5: Export Options
+Initial exports:
+
+Download CSV
+Download GeoJSON
+Download printable HTML atlas
+User prints HTML to PDF manually
+Avoid server-side PDF rendering in v1.
+
+Map Requirements
+Use Leaflet.
+
+Default basemap:
+
+Esri World Imagery tile layer.
+Tile URL:
+
+https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+Privacy note:
+
+Opening/rendering the atlas with public basemap tiles sends map coordinates to external tile servers.
+Add a small notice for users.
+Marker Requirements
+Use FlightYawDegree when available.
+
+Fallback:
+
+Use GimbalYawDegree if FlightYawDegree is missing.
+If neither exists, show marker pointed north.
+Only show the current photo marker on that photo’s atlas page.
+
+The marker should use the NorthArrow_11.svg icon or an equivalent stylized arrowhead.
+
+The map should also include a small north arrow using NorthArrow_02.svg.
+
+Boundary Overlay
+MVP:
+
+Allow GeoJSON upload.
+Display uploaded boundary on every map.
+Style:
+yellow or cyan outline
+2 px stroke
+transparent or very light fill
+Later:
+
+Add KML support with a library such as togeojson.
+Pricing / Product Direction
+This is intended as a small paid utility.
+
+Possible packaging:
+
+Free:
+
+EXIF extraction
+CSV download
+GeoJSON download
+maybe basic atlas preview
+Paid:
+
+polished printable photo atlas export
+editable comments
+label field selection
+map zoom control
+boundary overlay
+no watermark
+Suggested pricing:
+
+beta: $5
+standard later: $9
+pro later: $19
+Upsell:
+
+custom basemaps
+orthomosaic backdrops
+branded client PDFs
+QGIS/photo-log cleanup
+environmental report appendix formatting
+Important Product Constraint
+Do not overbuild.
+
+Avoid for v1:
+
+user accounts
+saved projects
+cloud photo storage
+subscriptions
+backend PDF rendering
+complex basemap selection
+every possible EXIF edge case
+Main target:
+
+environmental consultants who need fast field/photo logs for reports.
