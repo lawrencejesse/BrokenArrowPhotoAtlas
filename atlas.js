@@ -6,6 +6,24 @@
 
 'use strict';
 
+/* ---- Helper: blob URL → Base64 data URL ------------------ */
+
+async function toDataUrl(blobUrl) {
+  try {
+    const res  = await fetch(blobUrl);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('Could not encode photo as data URL, falling back to blob URL:', blobUrl, e);
+    return blobUrl;
+  }
+}
+
 /* ---- Public entry point ---------------------------------- */
 
 async function buildAtlas(included, settings, boundary) {
@@ -17,6 +35,7 @@ async function buildAtlas(included, settings, boundary) {
       fetch('replit_handoff/assets/NorthArrow_02.svg'),
       fetch('replit_handoff/assets/NorthArrow_11.svg')
     ]);
+    if (!nRes.ok || !pRes.ok) throw new Error('SVG asset fetch failed');
     const [nRaw, pRaw] = await Promise.all([nRes.text(), pRes.text()]);
 
     northSvg = nRaw
@@ -32,6 +51,8 @@ async function buildAtlas(included, settings, boundary) {
     console.warn('Could not load SVG assets, using fallback markers.', e);
   }
 
+  const dataUrls = await Promise.all(included.map(p => toDataUrl(p.objectUrl)));
+
   const photoData = included.map((p, i) => {
     const labelVal = p[settings.labelField] ?? p.photoNumber;
     const altStr = p.relativeAltitude != null
@@ -42,7 +63,7 @@ async function buildAtlas(included, settings, boundary) {
       lat:   p.latitude,
       lon:   p.longitude,
       yaw:   p.flightYawDegree ?? p.gimbalYawDegree ?? 0,
-      src:   p.objectUrl,
+      src:   dataUrls[i],
       fileName: p.fileName,
       caption: {
         photo:    String(labelVal ?? ''),
