@@ -162,7 +162,7 @@ body {
 
 /* ---- Build one photo log page (pair of photos) ----------- */
 
-function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe, branding) {
+function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe, branding, watermark) {
   const [a, b] = pair;
   const br = branding || {};
   const logoHtml    = br.logoDataUrl
@@ -195,6 +195,7 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
 </div>`;
   }
 
+  const wmHtml = (typeof WATERMARK_HTML !== 'undefined' && watermark) ? WATERMARK_HTML : '';
   return `
 <section class="pl-page">
   <div class="pl-header">
@@ -216,12 +217,14 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
     ${creditHtml}
     <span>Page ${pageNum} of ${totalPages}</span>
   </div>
+  ${wmHtml}
 </section>`;
 }
 
 /* ---- Render full photo log HTML document ----------------- */
 
-function renderPhotoLogHtml(photoData, settings) {
+function renderPhotoLogHtml(photoData, settings, watermark) {
+  if (watermark === undefined) watermark = true;
   const titleSafe    = escHtml(settings.title    || 'Photo Log');
   const subtitleSafe = escHtml(settings.subtitle || '');
 
@@ -245,7 +248,8 @@ function renderPhotoLogHtml(photoData, settings) {
 
   const accentColor = (settings.accentColor && /^#[0-9A-Fa-f]{6}$/.test(settings.accentColor))
     ? settings.accentColor : '#BF9555';
-  const brandedCss = PHOTO_LOG_CSS.replaceAll('#BF9555', accentColor);
+  const brandedCss = PHOTO_LOG_CSS.replaceAll('#BF9555', accentColor)
+    + (watermark && typeof WATERMARK_CSS !== 'undefined' ? WATERMARK_CSS : '');
 
   const branding = {
     companyName: settings.companyName || '',
@@ -256,7 +260,7 @@ function renderPhotoLogHtml(photoData, settings) {
   };
 
   const pagesHtml = pairs.map((pair, idx) =>
-    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe, branding)
+    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe, branding, watermark)
   ).join('\n');
 
   return `<!doctype html>
@@ -277,7 +281,8 @@ ${pagesHtml}
 
 /* ---- Public entry point ---------------------------------- */
 
-async function buildPhotoLog(included, settings) {
+async function buildPhotoLog(included, settings, watermark) {
+  if (watermark === undefined) watermark = true;
   const dataUrls = await Promise.all(included.map(p => toDataUrl(p.objectUrl)));
 
   const photoData = included.map((p, i) => {
@@ -298,7 +303,10 @@ async function buildPhotoLog(included, settings) {
     };
   });
 
-  const htmlStr = renderPhotoLogHtml(photoData, settings);
+  window._lastPhotoLogArgs = { photoData, settings };
+  window._lastAtlasArgs    = null;
+
+  const htmlStr = renderPhotoLogHtml(photoData, settings, watermark);
   const blob    = new Blob([htmlStr], { type: 'text/html;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
 

@@ -9,6 +9,8 @@
 
 let photos = [];
 let boundaryGeoJson = null;
+let paid = false;
+window.paidExportUnlocked = false;
 
 const atlasSettings = {
   title: '',
@@ -24,7 +26,49 @@ const atlasSettings = {
   showFooter: false
 };
 
+/* ---- Payment helpers ------------------------------------- */
+
+function setPaid(val) {
+  paid = val;
+  window.paidExportUnlocked = val;
+  updateExportUI();
+}
+
+function updateExportUI() {
+  const btn   = document.getElementById('unlock-export-btn');
+  const badge = document.getElementById('export-unlocked-badge');
+  const hint  = document.getElementById('export-hint');
+  if (!btn) return;
+  if (paid) {
+    btn.classList.add('hidden');
+    if (badge) badge.classList.remove('hidden');
+    if (hint)  hint.textContent = 'Export unlocked — download the clean, print-ready file below.';
+  } else {
+    btn.classList.remove('hidden');
+    if (badge) badge.classList.add('hidden');
+    if (hint)  hint.textContent = 'Preview includes a watermark. Unlock once per session for a clean, print-ready download.';
+  }
+}
+
+/* ---- Check for Stripe return ----------------------------- */
+(function checkPaymentReturn() {
+  const params    = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+  if (!sessionId) return;
+  const clean = new URL(window.location.href);
+  clean.searchParams.delete('session_id');
+  window.history.replaceState({}, '', clean.toString());
+  fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`)
+    .then(r => r.json())
+    .then(data => { if (data.paid) setPaid(true); })
+    .catch(err  => console.warn('Session verification failed:', err));
+})();
+
 /* ---- DOM refs -------------------------------------------- */
+
+const unlockExportBtn     = document.getElementById('unlock-export-btn');
+const exportUnlockedBadge = document.getElementById('export-unlocked-badge');
+const exportHint          = document.getElementById('export-hint');
 
 const photoFilesInput   = document.getElementById('photo-files');
 const photoFolderInput  = document.getElementById('photo-folder');
@@ -492,9 +536,9 @@ generateAtlasBtn.addEventListener('click', async () => {
 
   try {
     if (isAtlas && typeof buildAtlas === 'function') {
-      await buildAtlas(included, atlasSettings, boundaryGeoJson);
+      await buildAtlas(included, atlasSettings, boundaryGeoJson, !paid);
     } else if (!isAtlas && typeof buildPhotoLog === 'function') {
-      await buildPhotoLog(included, atlasSettings);
+      await buildPhotoLog(included, atlasSettings, !paid);
     }
   } catch (err) {
     console.error('Generation error', err);
@@ -512,8 +556,32 @@ generateAtlasBtn.addEventListener('click', async () => {
   step5El.classList.remove('hidden');
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;
+  if (unlockExportBtn && !paid) unlockExportBtn.disabled = false;
+  updateExportUI();
   step5El.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
+
+/* ---- Unlock export (Stripe Checkout) --------------------- */
+
+if (unlockExportBtn) {
+  unlockExportBtn.addEventListener('click', async () => {
+    unlockExportBtn.disabled = true;
+    unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Connecting to Stripe\u2026';
+    try {
+      const res  = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+      window.location.href = data.url;
+    } catch (err) {
+      alert(`Payment error: ${err.message}`);
+      unlockExportBtn.disabled = false;
+      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Unlock Clean Export \u2014 $12 CAD';
+    }
+  });
+}
 
 /* ---- CSV export ------------------------------------------ */
 

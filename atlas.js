@@ -26,7 +26,8 @@ async function toDataUrl(blobUrl) {
 
 /* ---- Public entry point ---------------------------------- */
 
-async function buildAtlas(included, settings, boundary) {
+async function buildAtlas(included, settings, boundary, watermark) {
+  if (watermark === undefined) watermark = true;
   let northSvg = '';
   let photoSvg = '';
 
@@ -74,7 +75,10 @@ async function buildAtlas(included, settings, boundary) {
     };
   });
 
-  const htmlStr = renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary);
+  window._lastAtlasArgs    = { photoData, northSvg, photoSvg, settings, boundary };
+  window._lastPhotoLogArgs = null;
+
+  const htmlStr = renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary, watermark);
 
   const blob    = new Blob([htmlStr], { type: 'text/html;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
@@ -115,8 +119,20 @@ function storeAtlasDownload(html, titleBase) {
   if (!dlBtn) return;
   dlBtn.addEventListener('click', () => {
     if (!atlasHtmlContent) return;
+    let html = atlasHtmlContent;
+    if (window.paidExportUnlocked) {
+      let cleanHtml = null;
+      if (window._lastAtlasArgs) {
+        const a = window._lastAtlasArgs;
+        cleanHtml = renderAtlasHtml(a.photoData, a.northSvg, a.photoSvg, a.settings, a.boundary, false);
+      } else if (window._lastPhotoLogArgs) {
+        const p = window._lastPhotoLogArgs;
+        cleanHtml = renderPhotoLogHtml(p.photoData, p.settings, false);
+      }
+      if (cleanHtml) html = cleanHtml;
+    }
     const filename = dlBtn.dataset.filename || 'photo_atlas.html';
-    const blob = new Blob([atlasHtmlContent], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url; a.download = filename;
@@ -356,8 +372,38 @@ const PORTRAIT_CSS = `
 .report-h1 { font-size: 14pt; margin: 0; }
 .report-h2 { font-size: 11pt; margin: 0; font-weight: 600; color: #444; text-transform: none; letter-spacing: 0; }`;
 
+/* ---- Watermark ------------------------------------------- */
+
+const WATERMARK_CSS = `
+.photo-page { position: relative; }
+.pl-page    { position: relative; }
+.watermark  {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+.watermark-text {
+  display: block;
+  font-size: 54pt;
+  font-weight: 900;
+  color: rgba(191, 149, 85, 0.2);
+  transform: rotate(-35deg);
+  white-space: nowrap;
+  user-select: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+}`;
+
+const WATERMARK_HTML = '<div class="watermark" aria-hidden="true"><span class="watermark-text">PREVIEW \u2014 Broken Arrow Photo Atlas</span></div>';
+
 /* Build one landscape page */
-function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding) {
+function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding, watermark) {
   const cap = item.caption;
   const br  = branding || {};
   const logoHtml    = br.logoDataUrl
@@ -376,6 +422,7 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding) {
        <h2 class="report-h2">${subtitleSafe}</h2>${companyHtml}${footerHtml}`
     : `${logoHtml}<div class="gradient-rule"></div>
        <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${companyHtml}${footerHtml}`;
+  const wmHtml = watermark ? WATERMARK_HTML : '';
   return `
 <section class="photo-page">
   <div class="main-photo frame">
@@ -389,11 +436,12 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding) {
   </div>
   <div class="report-title">${titleBlock}</div>
   <div class="map frame" id="${escHtml(item.id)}-map"></div>
+  ${wmHtml}
 </section>`;
 }
 
 /* Build one portrait page */
-function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding) {
+function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding, watermark) {
   const cap = item.caption;
   const br  = branding || {};
   const logoHtml    = br.logoDataUrl
@@ -408,6 +456,7 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding) {
 
   const altSep = cap.altitude ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '';
   const comSep = cap.comment  ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '';
+  const wmHtml2 = watermark ? WATERMARK_HTML : '';
   return `
 <section class="photo-page">
   <div class="main-photo frame">
@@ -430,10 +479,12 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding) {
     </div>
     ${footerHtml}
   </div>
+  ${wmHtml2}
 </section>`;
 }
 
-function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
+function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary, watermark) {
+  if (watermark === undefined) watermark = true;
   const titleSafe    = escHtml(settings.title    || '');
   const subtitleSafe = escHtml(settings.subtitle || '');
   const hasTitle     = titleSafe.length > 0;
@@ -442,7 +493,8 @@ function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
   const accentColor = (settings.accentColor && /^#[0-9A-Fa-f]{6}$/.test(settings.accentColor))
     ? settings.accentColor : '#BF9555';
   const layoutCss    = isPortrait ? PORTRAIT_CSS : LANDSCAPE_CSS;
-  const brandedCss   = (SHARED_CSS + layoutCss).replaceAll('#BF9555', accentColor);
+  const brandedCss   = (SHARED_CSS + layoutCss).replaceAll('#BF9555', accentColor)
+    + (watermark ? WATERMARK_CSS : '');
 
   const branding = {
     companyName: settings.companyName || '',
@@ -455,7 +507,7 @@ function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
   const buildPage = isPortrait ? buildPortraitPage : buildLandscapePage;
 
   const pages = photoData.map(item =>
-    buildPage(item, titleSafe, subtitleSafe, hasTitle, branding)
+    buildPage(item, titleSafe, subtitleSafe, hasTitle, branding, watermark)
   ).join('\n');
 
   const boundaryJson = boundary ? safeJson(boundary) : 'null';
