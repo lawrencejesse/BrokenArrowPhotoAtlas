@@ -1,0 +1,221 @@
+Weekend Build Order
+0. Lock the product shape
+
+Build one tool with two outputs:
+
+Output A: Photo Log
+
+The broad-market product.
+
+Use case: environmental consultants, insurance adjusters, contractors, realtors, ag consultants, inspectors.
+
+Format:
+Two photos per page
+Header block
+Caption under each photo
+Optional date / location / client / project
+Buyer logo / company name
+Clean PDF via browser print
+
+This is the one most likely to get used.
+
+Output B: Map Atlas
+
+The specialist product.
+
+Use case: drone/aerial/GPS photo work.
+
+Format:
+One photo per page
+Map centered on photo
+Yaw-oriented arrow
+Caption block
+Optional boundary polygon
+Broken Arrow styling
+
+This is the cool one. But the Photo Log is probably the first-dollar machine.
+
+Build These This Weekend
+1. Two-up Photo Log layout
+
+This is the highest priority.
+
+You already have:
+
+photo upload
+EXIF extraction
+GeoJSON
+editable grid
+caption field selection
+map atlas rendering
+
+Now add:
+
+Photo Log Mode:
+- 2 photos per page
+- no map required
+- header block at top
+- caption under each photo
+- page footer
+- browser print friendly
+
+This matters because it massively broadens the buyer base. Not everyone has GPS photos. Everyone has folders of photos.
+
+Do not add layout options yet.
+Make it look like the familiar Good Lands / MS Publisher / PowerPoint photo log people already understand.
+
+This is not the time to be Frank Lloyd Wright with JPEGs.
+
+2. Custom branding
+
+This is the single biggest “this is useful to me” feature.
+
+Add:
+
+Company name
+Project/client name
+Logo upload
+Accent color
+Optional small “Made with Broken Arrow Photo Atlas” footer
+
+The buyer does not want a Broken Arrow deliverable. They want their deliverable.
+
+But the footer keeps your funnel alive.
+
+Suggested footer:
+
+Created with Broken Arrow Photo Atlas
+
+Small. Tasteful. Not NASCAR-on-a-bumper loud.
+
+3. Watermarked preview
+
+Before Stripe, build the free-preview state.
+
+Watermark should appear on:
+
+generated HTML preview
+printed PDF if unpaid
+maybe each page diagonally or in footer/header
+
+Keep it simple:
+
+PREVIEW — Created with Broken Arrow Photo Atlas
+
+Then paid mode removes it.
+
+This creates the product loop:
+
+Upload photos
+See useful output
+Want clean copy
+Pay
+Download/print clean version
+
+Without the preview, Stripe feels theoretical. With the preview, the buyer already sees the value.
+
+4. Stripe Payment Link or Checkout gate
+
+Do the dumb-simple version.
+
+Not accounts. Not subscriptions. Not database user management.
+
+For weekend shipping, I’d do:
+
+Free preview
+Click “Unlock clean export”
+Stripe checkout
+Return to app with success token
+Clean export enabled
+
+Security can be soft. It’s fine if a determined nerd can bypass it in dev tools. Your buyers are consultants trying to save time, not Mission Impossible villains stealing a $12 photo log.
+
+Suggested launch pricing:
+
+Photo Log: $9 CAD
+Map Atlas: $15 CAD
+Or: Any clean atlas export: $12 CAD
+
+I’d honestly start with:
+
+Clean export: $12 CAD
+
+One price. No decision friction.
+
+Later you can split pricing.
+
+5. Launch copy page
+
+Add a proper landing section before or beside the app.
+
+Core message:
+
+Turn a folder of photos into a branded photo log or map atlas. No account. No subscription. Your photos stay in your browser.
+
+Key bullets:
+
+- Upload a folder of photos
+- Edit captions in a table
+- Add your company name and logo
+- Generate a polished photo log or GPS map atlas
+- Print to PDF from your browser
+- Nothing is stored
+- Pay once per clean export
+
+Add a custom-work CTA below the output:
+
+Need a custom QGIS atlas, client basemap, boundary overlays, or professional interpretation? Broken Arrow can build a custom deliverable.
+
+This is important. The self-serve tool is not only a product. It is a lead trap with manners.
+
+If There Is Extra Time This Weekend
+6. Cover / summary page
+
+This is probably the highest-value polish feature after Stripe.
+
+Auto-generate:
+
+Title
+Client
+Location
+Date range
+Photo count
+Prepared by
+Company logo
+Optional overview map if GPS exists
+
+This turns “photo dump” into “report.”
+
+Very high perceived value.
+
+But do not let it delay the core payment flow.
+
+7. Batch caption fill
+
+Once you add editable grid, people will immediately want:
+
+Set Client = X for all rows
+Set Location = Y for all rows
+Set Inspector = Jesse for all rows
+
+This is small and useful.
+
+Build this if the table starts feeling annoying during your own test.
+
+8. Project JSON export/import
+
+This is not needed to make the first dollar, but it is strategically huge.
+
+Add:
+
+Export project JSON
+Import project JSON
+
+Why it matters:
+
+users can resume later
+agents can edit the JSON in the future
+CLI/MCP can use the same project format
+you get a deterministic atlas config
+
+This is the bridge to agent-readiness.
