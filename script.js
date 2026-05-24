@@ -347,7 +347,23 @@ document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
   });
 });
 
-/* Batch caption fill */
+/* Batch caption fill — field definitions drive both the dropdown and the apply logic */
+const BATCH_FILL_FIELDS = [
+  { value: 'comment',        label: 'Comment / Notes' },
+  { value: 'date',           label: 'Date' },
+  { value: 'localQgisPath',  label: 'QGIS Photo Path' },
+];
+
+(function initBatchFillDropdown() {
+  const sel = document.getElementById('batch-fill-field');
+  BATCH_FILL_FIELDS.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.value;
+    opt.textContent = f.label;
+    sel.appendChild(opt);
+  });
+})();
+
 document.getElementById('batch-fill-btn').addEventListener('click', () => {
   const field = document.getElementById('batch-fill-field').value;
   const value = document.getElementById('batch-fill-value').value;

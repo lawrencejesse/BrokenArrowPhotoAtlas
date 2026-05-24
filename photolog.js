@@ -49,6 +49,13 @@ body {
   margin: 0.06in 0 0.05in;
 }
 
+.pl-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.2in;
+}
+
 .pl-subtitle {
   font-size: 10pt;
   font-weight: 600;
@@ -56,6 +63,14 @@ body {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.pl-meta {
+  font-size: 8.5pt;
+  font-weight: 500;
+  color: #666;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .pl-content {
@@ -127,7 +142,7 @@ body {
 
 /* ---- Build one photo log page (pair of photos) ----------- */
 
-function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe) {
+function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe) {
   const [a, b] = pair;
 
   function captionHtml(item) {
@@ -155,7 +170,10 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe) {
   <div class="pl-header">
     <h1 class="pl-title">${titleSafe}</h1>
     <div class="pl-gradient-rule"></div>
-    <p class="pl-subtitle">${subtitleSafe}</p>
+    <div class="pl-header-row">
+      ${subtitleSafe ? `<p class="pl-subtitle">${subtitleSafe}</p>` : ''}
+      ${metaSafe ? `<p class="pl-meta">${metaSafe}</p>` : ''}
+    </div>
   </div>
   <div class="pl-content">
     ${blockHtml(a, false)}
@@ -174,6 +192,18 @@ function renderPhotoLogHtml(photoData, settings) {
   const titleSafe    = escHtml(settings.title    || 'Photo Log');
   const subtitleSafe = escHtml(settings.subtitle || '');
 
+  /* Compute date range from non-empty date strings */
+  const dates = photoData.map(p => p.caption.date).filter(Boolean);
+  let dateRangeSafe = '';
+  if (dates.length === 1) {
+    dateRangeSafe = escHtml(dates[0]);
+  } else if (dates.length > 1) {
+    dateRangeSafe = escHtml(`${dates[0]} \u2013 ${dates[dates.length - 1]}`);
+  }
+
+  const countPart = `${photoData.length} photo${photoData.length !== 1 ? 's' : ''}`;
+  const metaSafe  = escHtml(countPart) + (dateRangeSafe ? ` &nbsp;|&nbsp; ${dateRangeSafe}` : '');
+
   const pairs = [];
   for (let i = 0; i < photoData.length; i += 2) {
     pairs.push([photoData[i], photoData[i + 1] || null]);
@@ -181,7 +211,7 @@ function renderPhotoLogHtml(photoData, settings) {
   const totalPages = pairs.length;
 
   const pagesHtml = pairs.map((pair, idx) =>
-    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe)
+    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe)
   ).join('\n');
 
   return `<!doctype html>
