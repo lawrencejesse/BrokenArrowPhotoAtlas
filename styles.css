@@ -639,6 +639,50 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   color: var(--white);
 }
 
+/* --- Batch fill bar --------------------------------------- */
+.batch-fill-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.batch-fill-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--body-text);
+  white-space: nowrap;
+}
+
+.batch-fill-select {
+  padding: 5px 10px;
+  background: var(--slate-dark);
+  border: 1px solid var(--slate-border);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+.batch-fill-select:focus { border-color: var(--orange); }
+
+.batch-fill-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 5px 10px;
+  background: var(--slate-dark);
+  border: 1px solid var(--slate-border);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.batch-fill-input::placeholder { color: rgba(160,168,184,0.4); }
+.batch-fill-input:focus { border-color: var(--orange); }
+
 /* --- Print instructions ----------------------------------- */
 .print-instructions {
   margin-bottom: 20px;

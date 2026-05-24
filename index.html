@@ -81,6 +81,16 @@
                     </div>
                 </div>
 
+                <div class="batch-fill-bar">
+                    <span class="batch-fill-label">Fill all rows:</span>
+                    <select class="batch-fill-select" id="batch-fill-field">
+                        <option value="comment">Comment</option>
+                        <option value="date">Date</option>
+                    </select>
+                    <input type="text" class="batch-fill-input" id="batch-fill-value" placeholder="Value to apply to every row…">
+                    <button class="btn-ghost" id="batch-fill-btn">Apply to all</button>
+                </div>
+
                 <div class="table-container">
                     <table id="review-table">
                         <thead>
@@ -108,8 +118,29 @@
 
             <section class="step-card hidden" id="step-3">
                 <div class="step-label">Step 3</div>
-                <h2 class="step-heading">Atlas Settings</h2>
-                <p class="step-desc">Configure how your photo atlas will look. These settings apply to all pages.</p>
+                <h2 class="step-heading">Output Settings</h2>
+                <p class="step-desc">Choose your output mode and configure how the document will look.</p>
+
+                <div class="field-group" style="margin-bottom:24px;">
+                    <label class="field-label">Output mode</label>
+                    <div class="layout-toggle">
+                        <label class="layout-option">
+                            <input type="radio" name="output-mode" id="mode-atlas" value="atlas" checked>
+                            <span class="layout-option-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Map Atlas
+                            </span>
+                        </label>
+                        <label class="layout-option">
+                            <input type="radio" name="output-mode" id="mode-photolog" value="photolog">
+                            <span class="layout-option-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="7" rx="1"/><rect x="13" y="3" width="9" height="7" rx="1"/><line x1="2" y1="14" x2="22" y2="14"/><line x1="2" y1="18" x2="22" y2="18"/><line x1="2" y1="22" x2="14" y2="22"/></svg>
+                                Photo Log
+                            </span>
+                        </label>
+                    </div>
+                    <p class="field-hint"><strong style="color:var(--white)">Map Atlas:</strong> one photo per page with GPS satellite map — requires geotagged photos. &nbsp;<strong style="color:var(--white)">Photo Log:</strong> two photos per page, no GPS required — works with any folder of photos.</p>
+                </div>
 
                 <div class="settings-grid">
                     <div class="field-group">
@@ -131,8 +162,8 @@
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3 class="settings-section-heading">Page Layout &amp; Map Settings</h3>
+                <div class="settings-section" id="map-atlas-only-settings">
+                    <h3 class="settings-section-heading">Map Settings</h3>
 
                     <div class="field-group">
                         <label class="field-label">Page orientation</label>
@@ -189,14 +220,14 @@
 
             <section class="step-card hidden" id="step-4">
                 <div class="step-label">Step 4</div>
-                <h2 class="step-heading">Generate Atlas</h2>
-                <p class="step-desc">Build your printable photo atlas. Each included photo gets its own page with a satellite map, caption, and location marker.</p>
+                <h2 class="step-heading">Generate</h2>
+                <p class="step-desc" id="step-4-desc">Build your printable document.</p>
 
                 <div id="generate-preview-info" class="generate-preview-info"></div>
 
                 <button class="btn btn-primary btn-generate" id="generate-atlas-btn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-                    Generate Printable Atlas
+                    <span id="generate-btn-label">Generate Printable Atlas</span>
                 </button>
 
                 <div id="generate-error" class="generate-error hidden"></div>
@@ -249,5 +280,6 @@
     </div>
     <script src="script.js"></script>
     <script src="atlas.js"></script>
+    <script src="photolog.js"></script>
 </body>
 </html>

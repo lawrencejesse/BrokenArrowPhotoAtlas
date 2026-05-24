@@ -327,15 +327,60 @@ function getLayoutValue() {
   return checked ? checked.value : 'landscape';
 }
 
+function getOutputMode() {
+  const checked = document.querySelector('input[name="output-mode"]:checked');
+  return checked ? checked.value : 'atlas';
+}
+
+/* Show/hide map-specific settings when output mode changes */
+document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const isAtlas = getOutputMode() === 'atlas';
+    const mapSettings = document.getElementById('map-atlas-only-settings');
+    if (mapSettings) mapSettings.classList.toggle('hidden', !isAtlas);
+    const btnLabel = document.getElementById('generate-btn-label');
+    if (btnLabel) btnLabel.textContent = isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log';
+    const step4Desc = document.getElementById('step-4-desc');
+    if (step4Desc) step4Desc.textContent = isAtlas
+      ? 'Build your printable map atlas. Each included photo gets its own page with a satellite map, caption, and location marker.'
+      : 'Build your printable photo log. Photos are paired two per page with captions — no GPS required.';
+  });
+});
+
+/* Batch caption fill */
+document.getElementById('batch-fill-btn').addEventListener('click', () => {
+  const field = document.getElementById('batch-fill-field').value;
+  const value = document.getElementById('batch-fill-value').value;
+  if (!photos.length) return;
+  photos.forEach(p => { p[field] = value; });
+  renderReviewTable();
+  document.getElementById('batch-fill-value').value = '';
+});
+
 gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.title    = atlasTitleInput.value.trim();
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
+  atlasSettings.mode     = getOutputMode();
 
-  const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
-  generatePreviewInfo.textContent = `${included.length} photo${included.length !== 1 ? 's' : ''} with GPS will be included in the atlas.`;
+  const isAtlas = atlasSettings.mode === 'atlas';
+  const included = isAtlas
+    ? photos.filter(p => p.include && p.latitude !== null && p.longitude !== null)
+    : photos.filter(p => p.include);
+
+  const step4Desc = document.getElementById('step-4-desc');
+  if (step4Desc) step4Desc.textContent = isAtlas
+    ? 'Build your printable map atlas. Each included photo gets its own page with a satellite map, caption, and location marker.'
+    : 'Build your printable photo log. Photos are paired two per page with captions — no GPS required.';
+
+  const btnLabel = document.getElementById('generate-btn-label');
+  if (btnLabel) btnLabel.textContent = isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log';
+
+  generatePreviewInfo.textContent = isAtlas
+    ? `${included.length} photo${included.length !== 1 ? 's' : ''} with GPS will be included in the atlas.`
+    : `${included.length} photo${included.length !== 1 ? 's' : ''} will be included in the photo log.`;
   generateError.classList.add('hidden');
 
   step4El.classList.remove('hidden');
@@ -350,33 +395,45 @@ generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
+  atlasSettings.mode     = getOutputMode();
 
-  const included = photos.filter(p => p.include && p.latitude !== null && p.longitude !== null);
+  const isAtlas = atlasSettings.mode === 'atlas';
+
+  const included = isAtlas
+    ? photos.filter(p => p.include && p.latitude !== null && p.longitude !== null)
+    : photos.filter(p => p.include);
+
   if (included.length === 0) {
-    generateError.textContent = 'No included photos have GPS coordinates. Check that your photos are geotagged and at least one is selected.';
+    generateError.textContent = isAtlas
+      ? 'No included photos have GPS coordinates. Check that your photos are geotagged and at least one is selected.'
+      : 'No photos are selected. Check at least one photo in the review table.';
     generateError.classList.remove('hidden');
     return;
   }
   generateError.classList.add('hidden');
 
-  if (typeof buildAtlas === 'function') {
-    generateAtlasBtn.disabled = true;
-    generateAtlasBtn.textContent = 'Building atlas…';
+  const svgIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>`;
 
-    try {
+  generateAtlasBtn.disabled = true;
+  generateAtlasBtn.innerHTML = svgIcon + (isAtlas ? ' Building atlas…' : ' Building photo log…');
+
+  try {
+    if (isAtlas && typeof buildAtlas === 'function') {
       await buildAtlas(included, atlasSettings, boundaryGeoJson);
-    } catch (err) {
-      console.error('Atlas generation error', err);
-      generateError.textContent = `Atlas generation failed: ${err.message}`;
-      generateError.classList.remove('hidden');
-      generateAtlasBtn.disabled = false;
-      generateAtlasBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Generate Printable Atlas`;
-      return;
+    } else if (!isAtlas && typeof buildPhotoLog === 'function') {
+      await buildPhotoLog(included, atlasSettings);
     }
-
+  } catch (err) {
+    console.error('Generation error', err);
+    generateError.textContent = `Generation failed: ${err.message}`;
+    generateError.classList.remove('hidden');
     generateAtlasBtn.disabled = false;
-    generateAtlasBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Regenerate Atlas`;
+    generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log'}</span>`;
+    return;
   }
+
+  generateAtlasBtn.disabled = false;
+  generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Regenerate Atlas' : 'Regenerate Photo Log'}</span>`;
 
   const step5El = document.getElementById('step-5');
   step5El.classList.remove('hidden');
