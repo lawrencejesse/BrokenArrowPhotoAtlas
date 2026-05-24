@@ -131,6 +131,26 @@ body {
   color: #888;
 }
 
+.pl-footer-credit {
+  font-size: 6.5pt;
+  color: #bbb;
+}
+
+.pl-logo {
+  max-height: 28pt;
+  max-width: 120pt;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 0.05in;
+}
+
+.pl-company {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #555;
+  margin: 0.03in 0 0;
+}
+
 @media screen {
   body { background: #94a3b8; }
   .pl-page {
@@ -142,8 +162,18 @@ body {
 
 /* ---- Build one photo log page (pair of photos) ----------- */
 
-function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe) {
+function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe, branding) {
   const [a, b] = pair;
+  const br = branding || {};
+  const logoHtml    = br.logoDataUrl
+    ? `<img class="pl-logo" src="${escHtml(br.logoDataUrl)}" alt="Logo">`
+    : '';
+  const companyHtml = (br.companyName || br.projectName)
+    ? `<p class="pl-company">${escHtml(br.companyName || '')}${br.companyName && br.projectName ? '\u2014' : ''}${escHtml(br.projectName || '')}</p>`
+    : '';
+  const creditHtml  = br.showFooter
+    ? `<span class="pl-footer-credit">Created with Broken Arrow Photo Atlas</span>`
+    : '';
 
   function captionHtml(item) {
     const c = item.caption;
@@ -168,12 +198,14 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
   return `
 <section class="pl-page">
   <div class="pl-header">
+    ${logoHtml}
     <h1 class="pl-title">${titleSafe}</h1>
     <div class="pl-gradient-rule"></div>
     <div class="pl-header-row">
       ${subtitleSafe ? `<p class="pl-subtitle">${subtitleSafe}</p>` : ''}
       ${metaSafe ? `<p class="pl-meta">${metaSafe}</p>` : ''}
     </div>
+    ${companyHtml}
   </div>
   <div class="pl-content">
     ${blockHtml(a, false)}
@@ -181,6 +213,7 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
   </div>
   <div class="pl-footer">
     <span>${titleSafe}</span>
+    ${creditHtml}
     <span>Page ${pageNum} of ${totalPages}</span>
   </div>
 </section>`;
@@ -210,8 +243,20 @@ function renderPhotoLogHtml(photoData, settings) {
   }
   const totalPages = pairs.length;
 
+  const accentColor = (settings.accentColor && /^#[0-9A-Fa-f]{6}$/.test(settings.accentColor))
+    ? settings.accentColor : '#BF9555';
+  const brandedCss = PHOTO_LOG_CSS.replaceAll('#BF9555', accentColor);
+
+  const branding = {
+    companyName: settings.companyName || '',
+    projectName: settings.projectName || '',
+    logoDataUrl: settings.logoDataUrl || '',
+    accentColor,
+    showFooter:  !!settings.showFooter
+  };
+
   const pagesHtml = pairs.map((pair, idx) =>
-    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe)
+    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe, branding)
   ).join('\n');
 
   return `<!doctype html>
@@ -222,7 +267,7 @@ function renderPhotoLogHtml(photoData, settings) {
 <title>${titleSafe}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>${PHOTO_LOG_CSS}</style>
+<style>${brandedCss}</style>
 </head>
 <body>
 ${pagesHtml}

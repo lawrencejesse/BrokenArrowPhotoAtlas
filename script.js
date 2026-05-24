@@ -16,7 +16,12 @@ const atlasSettings = {
   labelField: 'photoNumber',
   mapZoom: 16,
   layout: 'landscape',
-  boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 }
+  boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 },
+  companyName: '',
+  projectName: '',
+  logoDataUrl: '',
+  accentColor: '#BF9555',
+  showFooter: false
 };
 
 /* ---- DOM refs -------------------------------------------- */
@@ -332,6 +337,56 @@ function getOutputMode() {
   return checked ? checked.value : 'atlas';
 }
 
+/* ---- Branding inputs ------------------------------------- */
+
+const logoFileInput      = document.getElementById('logo-file');
+const logoPreview        = document.getElementById('logo-preview');
+const clearLogoBtn       = document.getElementById('clear-logo-btn');
+const accentColorPicker  = document.getElementById('accent-color-picker');
+const accentColorHex     = document.getElementById('accent-color-hex');
+
+logoFileInput.addEventListener('change', () => {
+  const file = logoFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    atlasSettings.logoDataUrl = e.target.result;
+    logoPreview.src = e.target.result;
+    logoPreview.classList.remove('hidden');
+    clearLogoBtn.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+});
+
+clearLogoBtn.addEventListener('click', () => {
+  atlasSettings.logoDataUrl = '';
+  logoPreview.src = '';
+  logoPreview.classList.add('hidden');
+  clearLogoBtn.classList.add('hidden');
+  logoFileInput.value = '';
+});
+
+accentColorPicker.addEventListener('input', () => {
+  accentColorHex.value = accentColorPicker.value.toUpperCase();
+  atlasSettings.accentColor = accentColorPicker.value;
+});
+
+accentColorHex.addEventListener('input', () => {
+  const val = accentColorHex.value.trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+    accentColorPicker.value = val;
+    atlasSettings.accentColor = val;
+  }
+});
+
+function readBrandingSettings() {
+  atlasSettings.companyName = document.getElementById('company-name').value.trim();
+  atlasSettings.projectName = document.getElementById('project-name').value.trim();
+  atlasSettings.accentColor = (/^#[0-9A-Fa-f]{6}$/.test(accentColorHex.value.trim()))
+    ? accentColorHex.value.trim() : '#BF9555';
+  atlasSettings.showFooter  = document.getElementById('show-footer').checked;
+}
+
 /* Show/hide map-specific settings when output mode changes */
 document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -380,6 +435,7 @@ gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
+  readBrandingSettings();
 
   const isAtlas = atlasSettings.mode === 'atlas';
   const included = isAtlas
@@ -412,6 +468,7 @@ generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
+  readBrandingSettings();
 
   const isAtlas = atlasSettings.mode === 'atlas';
 

@@ -190,6 +190,40 @@ body {
   background: linear-gradient(90deg, #5E9B72, #5E8B8A, #7E6D94, #947068, #BF9555);
 }
 
+.report-logo {
+  max-height: 26pt;
+  max-width: 110pt;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 0.05in;
+}
+
+.portrait-logo {
+  max-height: 16pt;
+  max-width: 70pt;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.08in;
+  margin-bottom: 0;
+}
+
+.report-company {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #555;
+  margin-top: 0.04in;
+  text-transform: none;
+  letter-spacing: 0;
+  display: block;
+}
+
+.page-footer {
+  font-size: 6.5pt;
+  color: #bbb;
+  margin-top: 0.06in;
+  font-weight: 400;
+}
+
 .leaflet-control-attribution { font-size: 6px !important; }
 
 .photo-arrow {
@@ -323,14 +357,25 @@ const PORTRAIT_CSS = `
 .report-h2 { font-size: 11pt; margin: 0; font-weight: 600; color: #444; text-transform: none; letter-spacing: 0; }`;
 
 /* Build one landscape page */
-function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
+function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding) {
   const cap = item.caption;
+  const br  = branding || {};
+  const logoHtml    = br.logoDataUrl
+    ? `<img class="report-logo" src="${escHtml(br.logoDataUrl)}" alt="Logo">`
+    : '';
+  const companyHtml = (br.companyName || br.projectName)
+    ? `<div class="report-company">${escHtml(br.companyName || '')}${br.companyName && br.projectName ? '&nbsp;\u2014&nbsp;' : ''}${escHtml(br.projectName || '')}</div>`
+    : '';
+  const footerHtml  = br.showFooter
+    ? `<div class="page-footer">Created with Broken Arrow Photo Atlas</div>`
+    : '';
+
   const titleBlock = hasTitle
-    ? `<h1 class="report-h1">${titleSafe}</h1>
+    ? `${logoHtml}<h1 class="report-h1">${titleSafe}</h1>
        <div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe}</h2>`
-    : `<div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>`;
+       <h2 class="report-h2">${subtitleSafe}</h2>${companyHtml}${footerHtml}`
+    : `${logoHtml}<div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${companyHtml}${footerHtml}`;
   return `
 <section class="photo-page">
   <div class="main-photo frame">
@@ -348,8 +393,19 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle) {
 }
 
 /* Build one portrait page */
-function buildPortraitPage(item, titleSafe, subtitleSafe) {
+function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding) {
   const cap = item.caption;
+  const br  = branding || {};
+  const logoHtml    = br.logoDataUrl
+    ? `<img class="report-logo portrait-logo" src="${escHtml(br.logoDataUrl)}" alt="Logo">`
+    : '';
+  const companyHtml = (br.companyName || br.projectName)
+    ? `<span class="report-company">${escHtml(br.companyName || '')}${br.companyName && br.projectName ? '\u2014' : ''}${escHtml(br.projectName || '')}</span>`
+    : '';
+  const footerHtml  = br.showFooter
+    ? `<div class="page-footer">Created with Broken Arrow Photo Atlas</div>`
+    : '';
+
   const altSep = cap.altitude ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '';
   const comSep = cap.comment  ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '';
   return `
@@ -367,9 +423,12 @@ function buildPortraitPage(item, titleSafe, subtitleSafe) {
     </div>
     <div class="gradient-rule"></div>
     <div class="title-row">
+      ${logoHtml}
       <h1 class="report-h1">${titleSafe}</h1>
       ${subtitleSafe ? `<h2 class="report-h2">${subtitleSafe}</h2>` : ''}
+      ${companyHtml}
     </div>
+    ${footerHtml}
   </div>
 </section>`;
 }
@@ -380,11 +439,23 @@ function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
   const hasTitle     = titleSafe.length > 0;
   const isPortrait   = settings.layout === 'portrait';
 
-  const layoutCss = isPortrait ? PORTRAIT_CSS : LANDSCAPE_CSS;
+  const accentColor = (settings.accentColor && /^#[0-9A-Fa-f]{6}$/.test(settings.accentColor))
+    ? settings.accentColor : '#BF9555';
+  const layoutCss    = isPortrait ? PORTRAIT_CSS : LANDSCAPE_CSS;
+  const brandedCss   = (SHARED_CSS + layoutCss).replaceAll('#BF9555', accentColor);
+
+  const branding = {
+    companyName: settings.companyName || '',
+    projectName: settings.projectName || '',
+    logoDataUrl: settings.logoDataUrl || '',
+    accentColor,
+    showFooter:  !!settings.showFooter
+  };
+
   const buildPage = isPortrait ? buildPortraitPage : buildLandscapePage;
 
   const pages = photoData.map(item =>
-    buildPage(item, titleSafe, subtitleSafe, hasTitle)
+    buildPage(item, titleSafe, subtitleSafe, hasTitle, branding)
   ).join('\n');
 
   const boundaryJson = boundary ? safeJson(boundary) : 'null';
@@ -400,7 +471,7 @@ function renderAtlasHtml(photoData, northSvg, photoSvg, settings, boundary) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${titleSafe || 'Photo Log'}</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>${SHARED_CSS}${layoutCss}
+<style>${brandedCss}
 </style>
 </head>
 <body>

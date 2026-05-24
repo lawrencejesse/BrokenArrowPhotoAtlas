@@ -769,6 +769,109 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   opacity: 0.5;
 }
 
+/* --- Branding section ------------------------------------- */
+.branding-section-wrap {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--slate-border);
+}
+
+.branding-summary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  user-select: none;
+  margin-bottom: 0;
+}
+.branding-summary::-webkit-details-marker { display: none; }
+.branding-summary::before {
+  content: '▶';
+  font-size: 9px;
+  color: var(--body-text);
+  transition: transform 0.15s;
+  display: inline-block;
+  order: -1;
+}
+details[open] .branding-summary::before { transform: rotate(90deg); }
+
+.branding-body {
+  margin-top: 16px;
+}
+
+/* --- Logo upload ------------------------------------------ */
+.logo-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logo-preview {
+  height: 36px;
+  max-width: 120px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--slate-border);
+  padding: 3px 6px;
+}
+
+.btn-clear-logo {
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* --- Color picker ----------------------------------------- */
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accent-color-picker {
+  width: 40px;
+  height: 36px;
+  border: 1px solid var(--slate-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.color-hex-input {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+/* --- Checkbox --------------------------------------------- */
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--body-text);
+  line-height: 1.45;
+}
+
+.checkbox-input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--orange);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 /* --- Utility ---------------------------------------------- */
 .hidden { display: none !important; }
 
