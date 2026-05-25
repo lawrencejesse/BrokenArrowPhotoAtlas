@@ -66,13 +66,21 @@ function updateExportUI() {
       .catch(err  => console.warn('Admin unlock failed:', err));
   }
 
-  function verifySession(id) {
+  function verifySession(id, { signalOriginalTab = false } = {}) {
     fetch(`/api/verify-session?session_id=${encodeURIComponent(id)}`)
       .then(r => r.json())
       .then(data => {
         if (data.paid) {
           localStorage.removeItem('pending_stripe_session');
-          setPaid(true);
+          if (signalOriginalTab) {
+            /* This is the Stripe return tab — signal the original tab and close */
+            localStorage.setItem('stripe_unlocked', '1');
+            window.close();
+            /* Fallback if window.close() is blocked */
+            document.body.innerHTML = '<div style="font-family:sans-serif;padding:2rem;text-align:center"><h2>Payment confirmed!</h2><p>You can close this tab and return to the Photo Log Atlas Builder.</p></div>';
+          } else {
+            setPaid(true);
+          }
         }
       })
       .catch(err => console.warn('Session verification failed:', err));
@@ -82,7 +90,7 @@ function updateExportUI() {
     const clean = new URL(window.location.href);
     clean.searchParams.delete('session_id');
     window.history.replaceState({}, '', clean.toString());
-    verifySession(sessionId);
+    verifySession(sessionId, { signalOriginalTab: true });
     return;
   }
 
@@ -598,6 +606,12 @@ if (unlockExportBtn) {
 
     unlockExportBtn.disabled = true;
     unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Connecting to Stripe\u2026';
+
+    const resetBtn = () => {
+      unlockExportBtn.disabled = false;
+      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Unlock Clean Export \u2014 $12 CAD';
+    };
+
     try {
       const res  = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -611,11 +625,30 @@ if (unlockExportBtn) {
       } else {
         window.location.href = data.url;
       }
+
+      /* Poll localStorage for the signal set by the Stripe return tab */
+      localStorage.removeItem('stripe_unlocked');
+      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Waiting for payment\u2026';
+
+      const pollInterval = setInterval(() => {
+        if (localStorage.getItem('stripe_unlocked') === '1') {
+          clearInterval(pollInterval);
+          localStorage.removeItem('stripe_unlocked');
+          localStorage.removeItem('pending_stripe_session');
+          setPaid(true);
+        }
+      }, 1500);
+
+      /* Stop polling after 15 minutes to avoid running forever */
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (!window.paidExportUnlocked) resetBtn();
+      }, 15 * 60 * 1000);
+
     } catch (err) {
       if (stripeTab) stripeTab.close();
       alert(`Payment error: ${err.message}`);
-      unlockExportBtn.disabled = false;
-      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Unlock Clean Export \u2014 $12 CAD';
+      resetBtn();
     }
   });
 }
