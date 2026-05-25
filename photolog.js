@@ -34,6 +34,7 @@ body {
 .pl-header {
   flex-shrink: 0;
   margin-bottom: 0.1in;
+  padding: 0 0.2in;
 }
 
 .pl-gradient-rule {
@@ -100,7 +101,7 @@ body {
   gap: 0.15in;
   overflow: hidden;
   min-height: 0;
-  padding: 0 0.25in;
+  padding: 0 0.2in;
 }
 
 .pl-photo-block {
@@ -151,7 +152,7 @@ body {
   align-items: flex-end;
   border-top: 1px solid #e0e0e0;
   margin-top: 0.08in;
-  padding-top: 0.05in;
+  padding: 0.05in 0.2in 0;
 }
 
 .pl-footer-brand {
