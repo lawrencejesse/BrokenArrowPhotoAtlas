@@ -81,12 +81,24 @@ function updateExportUI() {
           /* Persist the payment so the user doesn't lose it on page refresh */
           localStorage.setItem('stripe_verified_session', id);
           if (signalOriginalTab) {
-            /* Signal the original tab via the storage event (instant cross-tab) */
+            /* Signal the original tab. Small delay lets the browser dispatch the
+               storage event to the opener before we close the tab. */
             localStorage.setItem('stripe_unlocked', '1');
-            window.close();
-            /* If window.close() is blocked, redirect back to the app —
-               stripe_verified_session is already stored so it will auto-unlock */
-            setTimeout(() => { window.location.replace('/'); }, 600);
+            setTimeout(() => {
+              window.close();
+              /* If window.close() is blocked, show an inline message and leave
+                 the page as-is — DO NOT navigate away or the cleanup code will
+                 run again and wipe stripe_unlocked before the poll catches it. */
+              setTimeout(() => {
+                document.body.innerHTML = `
+                  <div style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:2rem;text-align:center;background:#0f172a;color:#f1f5f9;border-radius:12px;border:1px solid #334155">
+                    <div style="font-size:2rem;margin-bottom:1rem">✓</div>
+                    <h2 style="margin:0 0 0.75rem;color:#fff">Payment confirmed!</h2>
+                    <p style="color:#94a3b8;margin:0 0 1.5rem">Return to the Photo Log Atlas Builder tab — your clean file is downloading.</p>
+                    <p style="color:#64748b;font-size:0.8rem">You can close this tab.</p>
+                  </div>`;
+              }, 400);
+            }, 150);
           } else {
             setPaid(true);
             window.autoDownloadCleanExport?.();
@@ -719,11 +731,10 @@ if (unlockExportBtn) {
       }
       window.addEventListener('storage', onStorageUnlock);
 
-      /* Fallback: poll every second in case the storage event is suppressed
-         (e.g. same-tab flow or unusual browser behaviour) */
+      /* Fallback: poll every 300ms in case the storage event is suppressed */
       const pollInterval = setInterval(() => {
         if (localStorage.getItem('stripe_unlocked') === '1') handleUnlock();
-      }, 1000);
+      }, 300);
 
       /* Stop listening after 15 minutes to avoid running forever */
       setTimeout(() => {
