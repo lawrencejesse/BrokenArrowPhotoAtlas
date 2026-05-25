@@ -66,14 +66,28 @@ function updateExportUI() {
       .catch(err  => console.warn('Admin unlock failed:', err));
   }
 
-  if (!sessionId) return;
-  const clean = new URL(window.location.href);
-  clean.searchParams.delete('session_id');
-  window.history.replaceState({}, '', clean.toString());
-  fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`)
-    .then(r => r.json())
-    .then(data => { if (data.paid) setPaid(true); })
-    .catch(err  => console.warn('Session verification failed:', err));
+  function verifySession(id) {
+    fetch(`/api/verify-session?session_id=${encodeURIComponent(id)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.paid) {
+          localStorage.removeItem('pending_stripe_session');
+          setPaid(true);
+        }
+      })
+      .catch(err => console.warn('Session verification failed:', err));
+  }
+
+  if (sessionId) {
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('session_id');
+    window.history.replaceState({}, '', clean.toString());
+    verifySession(sessionId);
+    return;
+  }
+
+  const pending = localStorage.getItem('pending_stripe_session');
+  if (pending) verifySession(pending);
 })();
 
 /* ---- DOM refs -------------------------------------------- */
@@ -586,7 +600,8 @@ if (unlockExportBtn) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
-      window.location.href = data.url;
+      if (data.sessionId) localStorage.setItem('pending_stripe_session', data.sessionId);
+      window.open(data.url, '_blank');
     } catch (err) {
       alert(`Payment error: ${err.message}`);
       unlockExportBtn.disabled = false;

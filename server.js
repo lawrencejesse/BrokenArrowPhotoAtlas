@@ -41,7 +41,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
       success_url: successUrl,
       cancel_url:  `${baseUrl}/`
     });
-    res.json({ url: session.url });
+    res.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     console.error('[Stripe] create-checkout-session:', err.message);
     res.status(500).json({ error: err.message });
