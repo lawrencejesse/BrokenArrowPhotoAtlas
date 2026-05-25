@@ -9,6 +9,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
 function getBaseUrl(req) {
+  if (process.env.REPLIT_DOMAINS) {
+    const domain = process.env.REPLIT_DOMAINS.split(',')[0];
+    return `https://${domain}`;
+  }
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   const host  = req.headers['x-forwarded-host'] || req.get('host');
   return `${proto}://${host}`;
