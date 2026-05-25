@@ -521,6 +521,7 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   opacity: 0.4;
 }
 
+.col-drag    { width: 28px; text-align: center; padding: 0 4px !important; }
 .col-include { width: 60px; text-align: center; }
 .col-num     { width: 70px; }
 .col-name    { min-width: 160px; max-width: 240px; }
@@ -529,6 +530,27 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
 .col-alt     { width: 90px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .col-yaw     { width: 70px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .col-comment { min-width: 180px; }
+
+.drag-handle {
+  cursor: grab;
+  color: var(--muted-text, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  user-select: none;
+  transition: color 0.15s;
+}
+.drag-handle:hover { color: var(--orange); }
+.drag-handle:active { cursor: grabbing; }
+
+#review-table tbody tr.drag-over td {
+  border-top: 2px solid var(--orange);
+}
+#review-table tbody tr.dragging {
+  opacity: 0.4;
+}
 
 /* --- Include checkbox ------------------------------------- */
 .include-checkbox {

@@ -316,14 +316,21 @@ function updateIncludedCount() {
 
 function renderReviewTable() {
   reviewTbody.innerHTML = '';
+
+  let dragSrcIdx = null;
+
   photos.forEach((photo, i) => {
     const tr = document.createElement('tr');
     if (!photo.include) tr.classList.add('excluded');
+    tr.draggable = true;
 
     const fmtCoord = v => v !== null ? v.toFixed(6) : '—';
     const fmtNum   = v => v !== null ? v.toFixed(1) : '—';
 
+    const handleSvg = `<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="2.5" r="1.2"/><circle cx="10" cy="2.5" r="1.2"/><circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="4" cy="11.5" r="1.2"/><circle cx="10" cy="11.5" r="1.2"/></svg>`;
+
     tr.innerHTML = `
+      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span></td>
       <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
       <td class="col-num">${photo.photoNumber}</td>
       <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
@@ -343,6 +350,39 @@ function renderReviewTable() {
 
     tr.querySelector('.comment-input').addEventListener('input', e => {
       photos[i].comment = e.target.value;
+    });
+
+    /* --- Drag-and-drop handlers --- */
+    tr.addEventListener('dragstart', e => {
+      dragSrcIdx = i;
+      tr.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('dragging');
+      reviewTbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    });
+
+    tr.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      reviewTbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      if (dragSrcIdx !== i) tr.classList.add('drag-over');
+    });
+
+    tr.addEventListener('dragleave', () => {
+      tr.classList.remove('drag-over');
+    });
+
+    tr.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrcIdx === null || dragSrcIdx === i) return;
+      const moved = photos.splice(dragSrcIdx, 1)[0];
+      photos.splice(i, 0, moved);
+      /* Renumber sequentially after reorder */
+      photos.forEach((p, idx) => { p.photoNumber = idx + 1; });
+      renderReviewTable();
     });
 
     reviewTbody.appendChild(tr);
