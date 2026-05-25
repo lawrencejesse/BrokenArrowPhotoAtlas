@@ -33,15 +33,8 @@ body {
 
 .pl-header {
   flex-shrink: 0;
-  margin-bottom: 0.1in;
-  padding: 0 0.2in;
-}
-
-.pl-gradient-rule {
-  width: 100%;
-  height: 2.5px;
-  background: linear-gradient(90deg, #5E9B72, #5E8B8A, #7E6D94, #947068, #BF9555);
-  margin: 0.08in 0 0.1in;
+  margin-bottom: 0.12in;
+  padding: 0.2in 0.4in 0;
 }
 
 .pl-header-fields {
@@ -101,7 +94,7 @@ body {
   gap: 0.15in;
   overflow: hidden;
   min-height: 0;
-  padding: 0 0.2in;
+  padding: 0 0.4in;
 }
 
 .pl-photo-block {
@@ -152,7 +145,7 @@ body {
   align-items: flex-end;
   border-top: 1px solid #e0e0e0;
   margin-top: 0.08in;
-  padding: 0.05in 0.2in 0;
+  padding: 0.05in 0.4in 0.2in;
 }
 
 .pl-footer-brand {
@@ -245,7 +238,6 @@ function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, wa
       ${fieldHtml('Location', headerFields.location, 'center')}
       ${fieldHtml('Date', headerFields.date, 'right')}
     </div>
-    <div class="pl-gradient-rule"></div>
   </div>
   <div class="pl-content">
     ${blockHtml(a, false)}
