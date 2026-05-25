@@ -299,6 +299,7 @@ const LANDSCAPE_CSS = `
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0 0.28in;
+  padding-top: 0.1in;
 }
 .caption-block div { white-space: nowrap; }
 .caption-block .cap-comment {
@@ -313,6 +314,25 @@ const LANDSCAPE_CSS = `
   grid-row: 3;
   align-self: end;
   padding-bottom: 0.05in;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.1in;
+}
+
+.report-title-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.landscape-logo {
+  max-height: 32pt;
+  max-width: 100pt;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .report-h1 { font-size: 19pt; }
 .gradient-rule { width: 3.5in; margin: 0.07in 0 0.06in; }
@@ -380,9 +400,25 @@ const PORTRAIT_CSS = `
 
 .title-row {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.1in;
+}
+
+.title-row-text {
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 0.03in;
+  flex: 1;
+  min-width: 0;
+}
+
+.portrait-logo {
+  max-height: 32pt;
+  max-width: 100pt;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .report-h1 { font-size: 14pt; margin: 0; }
@@ -432,12 +468,15 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding, w
     ? `<div class="page-footer">Created with Broken Arrow Photo Atlas</div>`
     : '';
 
+  const landscapeLogoHtml = br.logoDataUrl
+    ? `<img class="landscape-logo" src="${escHtml(br.logoDataUrl)}" alt="Logo">`
+    : '';
   const titleBlock = hasTitle
-    ? `${logoHtml}<h1 class="report-h1">${titleSafe}</h1>
+    ? `<div class="report-title-text"><h1 class="report-h1">${titleSafe}</h1>
        <div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe}</h2>${footerHtml}`
-    : `${logoHtml}<div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${footerHtml}`;
+       <h2 class="report-h2">${subtitleSafe}</h2>${footerHtml}</div>${landscapeLogoHtml}`
+    : `<div class="report-title-text"><div class="gradient-rule"></div>
+       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${footerHtml}</div>${landscapeLogoHtml}`;
   const wmHtml = watermark ? WATERMARK_HTML : '';
   return `
 <section class="photo-page">
@@ -488,9 +527,11 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding, wa
     </div>
     <div class="gradient-rule"></div>
     <div class="title-row">
+      <div class="title-row-text">
+        <h1 class="report-h1">${titleSafe}</h1>
+        ${subtitleSafe ? `<h2 class="report-h2">${subtitleSafe}</h2>` : ''}
+      </div>
       ${logoHtml}
-      <h1 class="report-h1">${titleSafe}</h1>
-      ${subtitleSafe ? `<h2 class="report-h2">${subtitleSafe}</h2>` : ''}
     </div>
     ${footerHtml}
   </div>

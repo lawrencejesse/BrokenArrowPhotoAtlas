@@ -118,8 +118,9 @@ body {
 .pl-photo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  background: #f0f0f0;
 }
 
 .pl-caption {
@@ -141,18 +142,31 @@ body {
 .pl-footer {
   flex-shrink: 0;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-end;
   border-top: 1px solid #e0e0e0;
   margin-top: 0.08in;
   padding: 0.05in 0.4in 0.2in;
 }
 
-.pl-footer-brand {
+.pl-footer-left {
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.02in;
+  align-items: center;
+}
+
+.pl-footer-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pl-footer-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .pl-logo {
@@ -173,7 +187,6 @@ body {
   font-size: 8pt;
   font-weight: 500;
   color: #888;
-  text-align: right;
   white-space: nowrap;
 }
 
@@ -211,10 +224,8 @@ function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, wa
 
   function captionHtml(item) {
     const c = item.caption;
-    const numPart  = `<span class="pl-cap-label">PHOTO:</span> ${escHtml(c.photo)}`;
-    const altPart  = c.altitude ? `&nbsp;&nbsp;<span class="pl-cap-label">ALT:</span> ${escHtml(c.altitude)}` : '';
-    const notePart = c.comment  ? `<br>${escHtml(c.comment)}` : '';
-    return `<div class="pl-caption"><div>${numPart}${altPart}</div>${notePart ? `<div>${notePart}</div>` : ''}</div>`;
+    if (!c.comment) return '';
+    return `<div class="pl-caption">${escHtml(c.comment)}</div>`;
   }
 
   function blockHtml(item, isEmpty) {
@@ -244,11 +255,9 @@ function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, wa
     ${b ? blockHtml(b, false) : blockHtml(null, true)}
   </div>
   <div class="pl-footer">
-    <div class="pl-footer-brand">
-      ${logoHtml}
-      ${companyHtml}
-    </div>
-    <div class="pl-footer-page">Page ${pageNum} of ${totalPages}</div>
+    <div class="pl-footer-left">${companyHtml}</div>
+    <div class="pl-footer-center">${logoHtml}</div>
+    <div class="pl-footer-right"><span class="pl-footer-page">Page ${pageNum} of ${totalPages}</span></div>
   </div>
   ${wmHtml}
 </section>`;
