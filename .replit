@@ -44,3 +44,8 @@ externalPort = 5000
 
 [agent]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+ADMIN_TOKEN = "ba-admin-2024"

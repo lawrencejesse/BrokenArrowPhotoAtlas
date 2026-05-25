@@ -50,10 +50,22 @@ function updateExportUI() {
   }
 }
 
-/* ---- Check for Stripe return ----------------------------- */
+/* ---- Check for Stripe return or admin bypass ------------- */
 (function checkPaymentReturn() {
   const params    = new URLSearchParams(window.location.search);
   const sessionId = params.get('session_id');
+  const adminTok  = params.get('admin');
+
+  if (adminTok) {
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('admin');
+    window.history.replaceState({}, '', clean.toString());
+    fetch(`/api/admin-unlock?token=${encodeURIComponent(adminTok)}`)
+      .then(r => r.json())
+      .then(data => { if (data.ok) setPaid(true); })
+      .catch(err  => console.warn('Admin unlock failed:', err));
+  }
+
   if (!sessionId) return;
   const clean = new URL(window.location.href);
   clean.searchParams.delete('session_id');

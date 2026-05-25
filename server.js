@@ -57,6 +57,15 @@ app.get('/api/verify-session', async (req, res) => {
   }
 });
 
+app.get('/api/admin-unlock', (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN;
+  const { token }  = req.query;
+  if (!adminToken || !token || token !== adminToken) {
+    return res.status(401).json({ ok: false });
+  }
+  res.json({ ok: true });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Photo Log Atlas Builder listening on port ${PORT}`);
 });
