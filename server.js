@@ -32,11 +32,25 @@ app.post('/api/create-checkout-session', async (req, res) => {
     const stripe  = require('stripe')(secretKey);
     const baseUrl = getBaseUrl(req);
     const successUrl = `${baseUrl}/?session_id={CHECKOUT_SESSION_ID}`;
+
+    const { title, projectName } = req.body || {};
+    const descriptionParts = [title, projectName].filter(Boolean);
+    const description = descriptionParts.length
+      ? `Photo Log — ${descriptionParts.join(' / ')}`
+      : 'Photo Log Atlas Builder';
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
-      cancel_url:  `${baseUrl}/`
+      cancel_url:  `${baseUrl}/`,
+      payment_intent_data: {
+        description,
+        metadata: {
+          ...(title       ? { surface_location: title }       : {}),
+          ...(projectName ? { project:          projectName } : {})
+        }
+      }
     });
     res.json({ url: session.url, sessionId: session.id });
   } catch (err) {

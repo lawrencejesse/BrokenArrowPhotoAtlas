@@ -668,7 +668,11 @@ if (unlockExportBtn) {
     try {
       const res  = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:       atlasSettings.title       || '',
+          projectName: atlasSettings.projectName || ''
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
