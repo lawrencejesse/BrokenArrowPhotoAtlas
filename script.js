@@ -56,12 +56,6 @@ function updateExportUI() {
   const sessionId = params.get('session_id');
   const adminTok  = params.get('admin');
 
-  /* Clear stale signals that should never persist across fresh page loads.
-     stripe_same_tab and pending_stripe_session are read later in this IIFE
-     and must NOT be removed here. */
-  localStorage.removeItem('stripe_verified_session');
-  localStorage.removeItem('stripe_unlocked');
-
   if (adminTok) {
     const clean = new URL(window.location.href);
     clean.searchParams.delete('admin');
@@ -72,56 +66,32 @@ function updateExportUI() {
       .catch(err  => console.warn('Admin unlock failed:', err));
   }
 
-  function verifySession(id, { signalOriginalTab = false } = {}) {
-    fetch(`/api/verify-session?session_id=${encodeURIComponent(id)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.paid) {
-          localStorage.removeItem('pending_stripe_session');
-          /* Persist the payment so the user doesn't lose it on page refresh */
-          localStorage.setItem('stripe_verified_session', id);
-          if (signalOriginalTab) {
-            /* Signal the original tab. Small delay lets the browser dispatch the
-               storage event to the opener before we close the tab. */
-            localStorage.setItem('stripe_unlocked', '1');
-            setTimeout(() => {
-              window.close();
-              /* If window.close() is blocked, show an inline message and leave
-                 the page as-is — DO NOT navigate away or the cleanup code will
-                 run again and wipe stripe_unlocked before the poll catches it. */
-              setTimeout(() => {
-                document.body.innerHTML = `
-                  <div style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:2rem;text-align:center;background:#0f172a;color:#f1f5f9;border-radius:12px;border:1px solid #334155">
-                    <div style="font-size:2rem;margin-bottom:1rem">✓</div>
-                    <h2 style="margin:0 0 0.75rem;color:#fff">Payment confirmed!</h2>
-                    <p style="color:#94a3b8;margin:0 0 1.5rem">Return to the Photo Log Atlas Builder tab — your clean file is downloading.</p>
-                    <p style="color:#64748b;font-size:0.8rem">You can close this tab.</p>
-                  </div>`;
-              }, 400);
-            }, 150);
-          } else {
-            setPaid(true);
-            window.autoDownloadCleanExport?.();
-          }
-        }
-      })
-      .catch(err => console.warn('Session verification failed:', err));
-  }
-
   if (sessionId) {
+    /* This page loaded inside the Stripe return popup.
+       The original tab is polling the server independently — we just need
+       to close this popup gracefully. */
     const clean = new URL(window.location.href);
     clean.searchParams.delete('session_id');
     window.history.replaceState({}, '', clean.toString());
-    /* stripe_same_tab is set when popup was blocked and we navigated this tab to Stripe.
-       In that case we want to unlock THIS tab, not signal a parent. */
-    const sameTab = localStorage.getItem('stripe_same_tab') === '1';
-    localStorage.removeItem('stripe_same_tab');
-    verifySession(sessionId, { signalOriginalTab: !sameTab });
-    return;
-  }
 
-  const pending = localStorage.getItem('pending_stripe_session');
-  if (pending) verifySession(pending);
+    window.close();
+    /* If window.close() is blocked, show a simple confirmation — don't run
+       the full app, just tell the user to switch back to their original tab. */
+    setTimeout(() => {
+      document.body.innerHTML = `
+        <div style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:2rem;
+                    text-align:center;background:#0f172a;color:#f1f5f9;
+                    border-radius:12px;border:1px solid #334155">
+          <div style="font-size:2.5rem;margin-bottom:1rem">✓</div>
+          <h2 style="margin:0 0 0.75rem;color:#fff">Payment confirmed!</h2>
+          <p style="color:#94a3b8;margin:0 0 1.5rem">
+            Switch back to the Photo Log Atlas Builder tab —
+            your clean file will download automatically.
+          </p>
+          <p style="color:#64748b;font-size:0.8rem">You can close this tab.</p>
+        </div>`;
+    }, 200);
+  }
 })();
 
 /* ---- DOM refs -------------------------------------------- */
@@ -702,18 +672,12 @@ if (unlockExportBtn) {
         return;
       }
 
-      if (data.sessionId) localStorage.setItem('pending_stripe_session', data.sessionId);
       stripeTab.location.href = data.url;
 
-      /* Wait for the popup to signal payment completion */
-      localStorage.removeItem('stripe_unlocked');
       unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Waiting for payment\u2026';
 
       function handleUnlock() {
-        window.removeEventListener('storage', onStorageUnlock);
-        clearInterval(pollInterval);
-        localStorage.removeItem('stripe_unlocked');
-        localStorage.removeItem('pending_stripe_session');
+        clearInterval(serverPoll);
         setPaid(true);
         const downloaded = window.autoDownloadCleanExport?.();
         const hint = document.getElementById('export-hint');
@@ -724,22 +688,20 @@ if (unlockExportBtn) {
         }
       }
 
-      /* Primary: storage event fires instantly in this tab when the popup writes
-         stripe_unlocked to localStorage */
-      function onStorageUnlock(e) {
-        if (e.key === 'stripe_unlocked' && e.newValue === '1') handleUnlock();
-      }
-      window.addEventListener('storage', onStorageUnlock);
+      /* Poll our own server every 2 seconds asking "has this session been paid?"
+         No cross-tab communication needed — completely independent of the popup. */
+      const sessionId = data.sessionId;
+      const serverPoll = setInterval(async () => {
+        try {
+          const r    = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+          const json = await r.json();
+          if (json.paid) handleUnlock();
+        } catch (_) { /* ignore transient network errors, keep polling */ }
+      }, 2000);
 
-      /* Fallback: poll every 300ms in case the storage event is suppressed */
-      const pollInterval = setInterval(() => {
-        if (localStorage.getItem('stripe_unlocked') === '1') handleUnlock();
-      }, 300);
-
-      /* Stop listening after 15 minutes to avoid running forever */
+      /* Stop polling after 15 minutes */
       setTimeout(() => {
-        window.removeEventListener('storage', onStorageUnlock);
-        clearInterval(pollInterval);
+        clearInterval(serverPoll);
         if (!window.paidExportUnlocked) resetBtn();
       }, 15 * 60 * 1000);
 
