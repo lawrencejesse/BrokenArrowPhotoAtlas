@@ -391,7 +391,7 @@ const WATERMARK_CSS = `
   display: block;
   font-size: 54pt;
   font-weight: 900;
-  color: rgba(191, 149, 85, 0.2);
+  color: rgba(191, 149, 85, 0.32);
   transform: rotate(-35deg);
   white-space: nowrap;
   user-select: none;

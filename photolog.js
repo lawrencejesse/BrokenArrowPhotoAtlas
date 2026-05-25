@@ -1,7 +1,7 @@
 /* ============================================================
    Photo Log Atlas Builder — Photo Log Generator
    Broken Arrow Consulting
-   Builds a two-up printable photo log — no GPS required.
+   Builds a single-column printable photo log — no GPS required.
    Relies on globals from atlas.js: toDataUrl, storeAtlasDownload, escHtml
    ============================================================ */
 
@@ -26,63 +26,85 @@ body {
   break-after: page;
   display: flex;
   flex-direction: column;
-  gap: 0.1in;
   overflow: hidden;
 }
 
-.pl-header { flex-shrink: 0; }
+/* ---- Header ---------------------------------------------- */
 
-.pl-title {
-  font-size: 17pt;
-  font-weight: 800;
-  color: #BF9555;
-  text-transform: uppercase;
-  letter-spacing: -0.01em;
-  margin: 0;
-  line-height: 1.1;
+.pl-header {
+  flex-shrink: 0;
+  margin-bottom: 0.1in;
 }
 
 .pl-gradient-rule {
   width: 100%;
   height: 2.5px;
   background: linear-gradient(90deg, #5E9B72, #5E8B8A, #7E6D94, #947068, #BF9555);
-  margin: 0.06in 0 0.05in;
+  margin: 0.08in 0 0.1in;
 }
 
-.pl-header-row {
+.pl-header-fields {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 0.2in;
+  align-items: stretch;
+  gap: 0.15in;
 }
 
-.pl-subtitle {
-  font-size: 10pt;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
+.pl-header-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.02in;
+}
+
+.pl-header-field.center {
+  align-items: center;
+  text-align: center;
+}
+
+.pl-header-field.right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.pl-field-label {
+  font-size: 7pt;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
+  color: #BF9555;
+  margin: 0;
+  line-height: 1;
 }
 
-.pl-meta {
-  font-size: 8.5pt;
-  font-weight: 500;
-  color: #666;
+.pl-field-value {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #111;
   margin: 0;
-  white-space: nowrap;
+  line-height: 1.2;
 }
+
+.pl-field-value.empty {
+  color: #bbb;
+  font-weight: 400;
+  font-size: 9pt;
+}
+
+/* ---- Content (stacked photos) ---------------------------- */
 
 .pl-content {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 0.18in;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15in;
   overflow: hidden;
   min-height: 0;
+  padding: 0 0.25in;
 }
 
 .pl-photo-block {
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -111,7 +133,7 @@ body {
   font-size: 8.5pt;
   font-weight: 500;
   line-height: 1.55;
-  padding: 0.05in 0.02in 0.03in;
+  padding: 0.05in 0.04in 0.04in;
   border-top: 1.5px solid #ddd;
 }
 
@@ -120,35 +142,45 @@ body {
   color: #BF9555;
 }
 
+/* ---- Footer ---------------------------------------------- */
+
 .pl-footer {
   flex-shrink: 0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   border-top: 1px solid #e0e0e0;
+  margin-top: 0.08in;
   padding-top: 0.05in;
-  font-size: 7.5pt;
-  color: #888;
 }
 
-.pl-footer-credit {
-  font-size: 6.5pt;
-  color: #bbb;
+.pl-footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.02in;
 }
 
 .pl-logo {
-  max-height: 28pt;
-  max-width: 120pt;
+  max-height: 26pt;
+  max-width: 110pt;
   object-fit: contain;
   display: block;
-  margin-bottom: 0.05in;
 }
 
 .pl-company {
   font-size: 8pt;
   font-weight: 600;
   color: #555;
-  margin: 0.03in 0 0;
+  margin: 0;
+}
+
+.pl-footer-page {
+  font-size: 8pt;
+  font-weight: 500;
+  color: #888;
+  text-align: right;
+  white-space: nowrap;
 }
 
 @media screen {
@@ -160,20 +192,28 @@ body {
   }
 }`;
 
-/* ---- Build one photo log page (pair of photos) ----------- */
+/* ---- Build one photo log page (pair of photos, stacked) -- */
 
-function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, metaSafe, branding, watermark) {
+function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, watermark) {
   const [a, b] = pair;
   const br = branding || {};
-  const logoHtml    = br.logoDataUrl
+
+  const logoHtml = br.logoDataUrl
     ? `<img class="pl-logo" src="${escHtml(br.logoDataUrl)}" alt="Logo">`
     : '';
-  const companyHtml = (br.companyName || br.projectName)
-    ? `<p class="pl-company">${escHtml(br.companyName || '')}${br.companyName && br.projectName ? '\u2014' : ''}${escHtml(br.projectName || '')}</p>`
+  const companyHtml = br.companyName
+    ? `<p class="pl-company">${escHtml(br.companyName)}</p>`
     : '';
-  const creditHtml  = br.showFooter
-    ? `<span class="pl-footer-credit">Created with Broken Arrow Photo Atlas</span>`
-    : '';
+
+  function fieldHtml(label, value, alignClass) {
+    const cls = alignClass ? ` ${alignClass}` : '';
+    const valCls = value ? '' : ' empty';
+    const display = value || '—';
+    return `<div class="pl-header-field${cls}">
+  <p class="pl-field-label">${escHtml(label)}</p>
+  <p class="pl-field-value${valCls}">${escHtml(display)}</p>
+</div>`;
+  }
 
   function captionHtml(item) {
     const c = item.caption;
@@ -196,26 +236,27 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
   }
 
   const wmHtml = (typeof WATERMARK_HTML !== 'undefined' && watermark) ? WATERMARK_HTML : '';
+
   return `
 <section class="pl-page">
   <div class="pl-header">
-    ${logoHtml}
-    <h1 class="pl-title">${titleSafe}</h1>
-    <div class="pl-gradient-rule"></div>
-    <div class="pl-header-row">
-      ${subtitleSafe ? `<p class="pl-subtitle">${subtitleSafe}</p>` : ''}
-      ${metaSafe ? `<p class="pl-meta">${metaSafe}</p>` : ''}
+    <div class="pl-header-fields">
+      ${fieldHtml('Client', headerFields.client, '')}
+      ${fieldHtml('Location', headerFields.location, 'center')}
+      ${fieldHtml('Date', headerFields.date, 'right')}
     </div>
-    ${companyHtml}
+    <div class="pl-gradient-rule"></div>
   </div>
   <div class="pl-content">
     ${blockHtml(a, false)}
     ${b ? blockHtml(b, false) : blockHtml(null, true)}
   </div>
   <div class="pl-footer">
-    <span>${titleSafe}</span>
-    ${creditHtml}
-    <span>Page ${pageNum} of ${totalPages}</span>
+    <div class="pl-footer-brand">
+      ${logoHtml}
+      ${companyHtml}
+    </div>
+    <div class="pl-footer-page">Page ${pageNum} of ${totalPages}</div>
   </div>
   ${wmHtml}
 </section>`;
@@ -225,20 +266,21 @@ function buildPhotoLogPage(pair, pageNum, totalPages, titleSafe, subtitleSafe, m
 
 function renderPhotoLogHtml(photoData, settings, watermark) {
   if (watermark === undefined) watermark = true;
-  const titleSafe    = escHtml(settings.title    || 'Photo Log');
-  const subtitleSafe = escHtml(settings.subtitle || '');
 
   /* Compute date range from non-empty date strings */
   const dates = photoData.map(p => p.caption.date).filter(Boolean);
-  let dateRangeSafe = '';
+  let dateRange = '';
   if (dates.length === 1) {
-    dateRangeSafe = escHtml(dates[0]);
+    dateRange = dates[0];
   } else if (dates.length > 1) {
-    dateRangeSafe = escHtml(`${dates[0]} \u2013 ${dates[dates.length - 1]}`);
+    dateRange = `${dates[0]} \u2013 ${dates[dates.length - 1]}`;
   }
 
-  const countPart = `${photoData.length} photo${photoData.length !== 1 ? 's' : ''}`;
-  const metaSafe  = escHtml(countPart) + (dateRangeSafe ? ` &nbsp;|&nbsp; ${dateRangeSafe}` : '');
+  const headerFields = {
+    client:   settings.companyName || settings.title || '',
+    location: settings.subtitle    || '',
+    date:     dateRange
+  };
 
   const pairs = [];
   for (let i = 0; i < photoData.length; i += 2) {
@@ -253,14 +295,14 @@ function renderPhotoLogHtml(photoData, settings, watermark) {
 
   const branding = {
     companyName: settings.companyName || '',
-    projectName: settings.projectName || '',
     logoDataUrl: settings.logoDataUrl || '',
-    accentColor,
-    showFooter:  !!settings.showFooter
+    accentColor
   };
 
+  const titleSafe = escHtml(settings.title || 'Photo Log');
+
   const pagesHtml = pairs.map((pair, idx) =>
-    buildPhotoLogPage(pair, idx + 1, totalPages, titleSafe, subtitleSafe, metaSafe, branding, watermark)
+    buildPhotoLogPage(pair, idx + 1, totalPages, branding, headerFields, watermark)
   ).join('\n');
 
   return `<!doctype html>
