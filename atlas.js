@@ -380,8 +380,9 @@ const PORTRAIT_CSS = `
 
 .title-row {
   display: flex;
-  align-items: baseline;
-  gap: 0.2in;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.03in;
 }
 
 .report-h1 { font-size: 14pt; margin: 0; }
@@ -434,9 +435,9 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding, w
   const titleBlock = hasTitle
     ? `${logoHtml}<h1 class="report-h1">${titleSafe}</h1>
        <div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe}</h2>${companyHtml}${footerHtml}`
+       <h2 class="report-h2">${subtitleSafe}</h2>${footerHtml}`
     : `${logoHtml}<div class="gradient-rule"></div>
-       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${companyHtml}${footerHtml}`;
+       <h2 class="report-h2">${subtitleSafe || 'Photo Log'}</h2>${footerHtml}`;
   const wmHtml = watermark ? WATERMARK_HTML : '';
   return `
 <section class="photo-page">
@@ -490,7 +491,6 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding, wa
       ${logoHtml}
       <h1 class="report-h1">${titleSafe}</h1>
       ${subtitleSafe ? `<h2 class="report-h2">${subtitleSafe}</h2>` : ''}
-      ${companyHtml}
     </div>
     ${footerHtml}
   </div>
