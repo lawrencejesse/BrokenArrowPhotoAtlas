@@ -293,13 +293,20 @@ const LANDSCAPE_CSS = `
   grid-row: 2;
   align-self: center;
   font-size: 9.5pt;
-  line-height: 1.3;
+  line-height: 1.4;
   font-weight: 600;
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 0 0.28in;
 }
 .caption-block div { white-space: nowrap; }
+.caption-block .cap-comment {
+  flex-basis: 100%;
+  white-space: normal;
+  word-break: break-word;
+  margin-top: 0.02in;
+}
 
 .report-title {
   grid-column: 1;
@@ -347,6 +354,7 @@ const PORTRAIT_CSS = `
 .caption-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0;
   font-size: 9pt;
   font-weight: 600;
@@ -360,6 +368,13 @@ const PORTRAIT_CSS = `
   font-weight: 300;
 }
 .caption-row .cap-label { color: #BF9555; font-weight: 800; }
+.caption-row .cap-comment {
+  flex-basis: 100%;
+  white-space: normal;
+  word-break: break-word;
+  margin-top: 0.03in;
+  font-weight: 500;
+}
 
 .gradient-rule { width: 100%; height: 2.5px; margin: 0; }
 
@@ -432,7 +447,7 @@ function buildLandscapePage(item, titleSafe, subtitleSafe, hasTitle, branding, w
     <div><span class="cap-label">PHOTO:</span> ${escHtml(cap.photo)}</div>
     <div><span class="cap-label">DATE:</span> ${escHtml(cap.date)}</div>
     ${cap.altitude ? `<div><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : ''}
-    ${cap.comment  ? `<div><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
+    ${cap.comment  ? `<div class="cap-comment"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : ''}
   </div>
   <div class="report-title">${titleBlock}</div>
   <div class="map frame" id="${escHtml(item.id)}-map"></div>
@@ -455,7 +470,7 @@ function buildPortraitPage(item, titleSafe, subtitleSafe, hasTitle, branding, wa
     : '';
 
   const altSep = cap.altitude ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">ALTITUDE:</span> ${escHtml(cap.altitude)}</div>` : '';
-  const comSep = cap.comment  ? `<span class="cap-sep">|</span><div class="cap-item"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>`  : '';
+  const comSep = cap.comment  ? `<div class="cap-comment"><span class="cap-label">COMMENT:</span> ${escHtml(cap.comment)}</div>` : '';
   const wmHtml2 = watermark ? WATERMARK_HTML : '';
   return `
 <section class="photo-page">

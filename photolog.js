@@ -265,11 +265,13 @@ function renderPhotoLogHtml(photoData, settings, watermark) {
   if (dates.length === 1) {
     dateRange = dates[0];
   } else if (dates.length > 1) {
-    dateRange = `${dates[0]} \u2013 ${dates[dates.length - 1]}`;
+    const first = dates[0];
+    const last  = dates[dates.length - 1];
+    dateRange = first === last ? first : `${first} \u2013 ${last}`;
   }
 
   const headerFields = {
-    client:   settings.companyName || '',
+    client:   settings.projectName || '',
     location: settings.title       || '',
     date:     dateRange
   };
