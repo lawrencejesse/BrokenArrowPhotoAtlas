@@ -31,10 +31,14 @@ app.post('/api/create-checkout-session', async (req, res) => {
   try {
     const stripe  = require('stripe')(secretKey);
     const baseUrl = getBaseUrl(req);
+    const successUrl = `${baseUrl}/?session_id={CHECKOUT_SESSION_ID}`;
+    console.log('[Stripe] baseUrl:', baseUrl);
+    console.log('[Stripe] success_url:', successUrl);
+    console.log('[Stripe] REPLIT_DOMAINS env:', process.env.REPLIT_DOMAINS);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${baseUrl}/?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: successUrl,
       cancel_url:  `${baseUrl}/`
     });
     res.json({ url: session.url });
