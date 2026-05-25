@@ -87,6 +87,7 @@ function updateExportUI() {
             setTimeout(() => { window.location.replace('/'); }, 600);
           } else {
             setPaid(true);
+            window.autoDownloadCleanExport?.();
           }
         }
       })
@@ -691,6 +692,7 @@ if (unlockExportBtn) {
         localStorage.removeItem('stripe_unlocked');
         localStorage.removeItem('pending_stripe_session');
         setPaid(true);
+        window.autoDownloadCleanExport?.();
       }
 
       /* Primary: storage event fires instantly in this tab when the popup writes

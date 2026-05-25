@@ -114,32 +114,47 @@ function storeAtlasDownload(html, titleBase) {
 
 /* ---- Download atlas HTML --------------------------------- */
 
+function buildDownloadHtml(clean) {
+  if (!atlasHtmlContent) return null;
+  if (clean) {
+    if (window._lastAtlasArgs) {
+      const a = window._lastAtlasArgs;
+      return renderAtlasHtml(a.photoData, a.northSvg, a.photoSvg, a.settings, a.boundary, false);
+    } else if (window._lastPhotoLogArgs) {
+      const p = window._lastPhotoLogArgs;
+      return renderPhotoLogHtml(p.photoData, p.settings, false);
+    }
+  }
+  return atlasHtmlContent;
+}
+
+function triggerHtmlDownload(html, filename) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/* Called automatically after payment is confirmed */
+window.autoDownloadCleanExport = function() {
+  const html = buildDownloadHtml(true);
+  if (!html) return;
+  const dlBtn   = document.getElementById('download-atlas-html');
+  const filename = (dlBtn && dlBtn.dataset.filename) || 'photo_atlas.html';
+  triggerHtmlDownload(html, filename);
+};
+
 (function wireDownloadBtn() {
   const dlBtn = document.getElementById('download-atlas-html');
   if (!dlBtn) return;
   dlBtn.addEventListener('click', () => {
-    if (!atlasHtmlContent) return;
-    let html = atlasHtmlContent;
-    if (window.paidExportUnlocked) {
-      let cleanHtml = null;
-      if (window._lastAtlasArgs) {
-        const a = window._lastAtlasArgs;
-        cleanHtml = renderAtlasHtml(a.photoData, a.northSvg, a.photoSvg, a.settings, a.boundary, false);
-      } else if (window._lastPhotoLogArgs) {
-        const p = window._lastPhotoLogArgs;
-        cleanHtml = renderPhotoLogHtml(p.photoData, p.settings, false);
-      }
-      if (cleanHtml) html = cleanHtml;
-    }
-    const filename = dlBtn.dataset.filename || 'photo_atlas.html';
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const html = buildDownloadHtml(window.paidExportUnlocked);
+    if (!html) return;
+    triggerHtmlDownload(html, dlBtn.dataset.filename || 'photo_atlas.html');
   });
 })();
 
