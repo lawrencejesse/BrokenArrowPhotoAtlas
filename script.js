@@ -56,9 +56,11 @@ function updateExportUI() {
   const sessionId = params.get('session_id');
   const adminTok  = params.get('admin');
 
-  /* Restore paid state if user already paid in this browser */
-  const storedVerified = localStorage.getItem('stripe_verified_session');
-  if (storedVerified) setPaid(true);
+  /* Clear stale signals that should never persist across fresh page loads.
+     stripe_same_tab and pending_stripe_session are read later in this IIFE
+     and must NOT be removed here. */
+  localStorage.removeItem('stripe_verified_session');
+  localStorage.removeItem('stripe_unlocked');
 
   if (adminTok) {
     const clean = new URL(window.location.href);
@@ -710,11 +712,6 @@ if (unlockExportBtn) {
          (e.g. same-tab flow or unusual browser behaviour) */
       const pollInterval = setInterval(() => {
         if (localStorage.getItem('stripe_unlocked') === '1') handleUnlock();
-        /* Also unlock immediately if stripe_verified_session was written
-           (covers the redirect-back-to-app fallback path) */
-        if (!window.paidExportUnlocked && localStorage.getItem('stripe_verified_session')) {
-          handleUnlock();
-        }
       }, 1000);
 
       /* Stop listening after 15 minutes to avoid running forever */
