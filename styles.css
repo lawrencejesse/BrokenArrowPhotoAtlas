@@ -275,6 +275,37 @@ body {
   color: var(--orange);
 }
 
+.draft-status {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(94, 139, 138, 0.1);
+  border: 1px solid rgba(94, 139, 138, 0.28);
+  color: var(--teal);
+}
+.draft-status.error {
+  background: rgba(191,85,85,0.1);
+  border-color: rgba(191,85,85,0.25);
+  color: #e87979;
+}
+
+.draft-help {
+  margin: 10px 0 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 139, 138, 0.08);
+  border: 1px solid rgba(94, 139, 138, 0.22);
+  font-size: 12px;
+  color: var(--body-text);
+  line-height: 1.5;
+}
+.draft-help strong {
+  color: var(--white);
+}
+
 /* --- Advanced section ------------------------------------- */
 .advanced-section {
   margin-top: 16px;
@@ -760,6 +791,14 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.export-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--body-text);
+  opacity: 0.75;
+  line-height: 1.45;
 }
 
 /* --- Footer ----------------------------------------------- */

@@ -150,6 +150,11 @@ window.autoDownloadCleanExport = function() {
   return true;
 };
 
+if (window.pendingCleanExportDownload) {
+  window.pendingCleanExportDownload = false;
+  window.autoDownloadCleanExport();
+}
+
 (function wireDownloadBtn() {
   const dlBtn = document.getElementById('download-atlas-html');
   if (!dlBtn) return;

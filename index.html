@@ -137,9 +137,22 @@
                         Select Folder
                     </label>
                     <input type="file" id="photo-folder" webkitdirectory directory multiple style="display:none">
+
+                    <label class="btn btn-secondary" for="draft-file">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+                        Resume Draft
+                    </label>
+                    <input type="file" id="draft-file" accept=".geojson,.json" style="display:none">
                 </div>
 
                 <div id="selection-summary" class="selection-summary hidden"></div>
+                <div id="draft-status" class="draft-status hidden"></div>
+
+                <div class="draft-help">
+                    <strong>Review drafts are portable save files.</strong>
+                    They store captions, order, settings, GPS, and relative photo names, but not the photos themselves.
+                    To resume or hand off a job, load the same photo folder and the saved draft GeoJSON.
+                </div>
 
                 <details class="advanced-section">
                     <summary class="advanced-toggle">Advanced: QGIS photo path</summary>
@@ -167,6 +180,7 @@
                 <div class="table-toolbar">
                     <span id="included-count" class="included-count"></span>
                     <div class="table-toolbar-actions">
+                        <button class="btn-ghost" id="save-draft-btn">Save review draft</button>
                         <button class="btn-ghost" id="select-all-btn">Select all</button>
                         <button class="btn-ghost" id="deselect-all-btn">Deselect all</button>
                     </div>
@@ -410,7 +424,12 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download GeoJSON
                     </button>
+                    <button class="btn btn-secondary" id="download-draft" disabled>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>
+                        Save Review Draft
+                    </button>
                 </div>
+                <p class="export-note">Save Review Draft creates a small GeoJSON handoff file. It does not include image files, so keep the original photo folder with the draft.</p>
             </section>
 
         </main>

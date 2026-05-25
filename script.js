@@ -11,6 +11,14 @@ let photos = [];
 let boundaryGeoJson = null;
 let paid = false;
 window.paidExportUnlocked = false;
+window.pendingCleanExportDownload = false;
+
+const DRAFT_SCHEMA_VERSION = 1;
+const RECOVERY_DRAFT_KEY = 'ba_photo_atlas_recovery_draft_v1';
+const PENDING_SESSION_KEY = 'ba_photo_atlas_pending_session_id';
+const PAID_SESSION_KEY = 'ba_photo_atlas_paid_session_id';
+const PAYMENT_RECOVERY_MS = 24 * 60 * 60 * 1000;
+const PROJECT_MATCH_THRESHOLD = 0.75;
 
 const atlasSettings = {
   title: '',
@@ -26,12 +34,110 @@ const atlasSettings = {
   showFooter: false
 };
 
+let pendingDraft = null;
+let pendingDraftName = '';
+let lastDraftSavedAt = null;
+let currentProjectKey = '';
+let currentProjectManifest = [];
+let paidProjectKey = '';
+
 /* ---- Payment helpers ------------------------------------- */
 
-function setPaid(val) {
+function setPaid(val, projectKey = currentProjectKey) {
   paid = val;
   window.paidExportUnlocked = val;
+  paidProjectKey = val ? projectKey : '';
   updateExportUI();
+}
+
+function rememberPaidSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest) {
+  if (!sessionId) return;
+  try {
+    localStorage.setItem(PAID_SESSION_KEY, JSON.stringify({
+      sessionId,
+      projectKey,
+      projectManifest,
+      savedAt: Date.now()
+    }));
+    localStorage.removeItem(PENDING_SESSION_KEY);
+  } catch (_) { /* localStorage may be unavailable */ }
+}
+
+function rememberPendingSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest) {
+  if (!sessionId) return;
+  try {
+    localStorage.setItem(PENDING_SESSION_KEY, JSON.stringify({
+      sessionId,
+      projectKey,
+      projectManifest,
+      savedAt: Date.now()
+    }));
+  } catch (_) { /* localStorage may be unavailable */ }
+}
+
+function getStoredCheckoutSession(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return '';
+    let sessionId = raw;
+    let projectKey = '';
+    let projectManifest = [];
+    let savedAt = Date.now();
+    try {
+      const parsed = JSON.parse(raw);
+      sessionId = parsed.sessionId || '';
+      projectKey = parsed.projectKey || parsed.exportKey || '';
+      projectManifest = Array.isArray(parsed.projectManifest) ? parsed.projectManifest : [];
+      savedAt = Number(parsed.savedAt) || 0;
+    } catch (_) { /* older storage used a plain session id */ }
+    if (!sessionId || !projectKey || Date.now() - savedAt > PAYMENT_RECOVERY_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return { sessionId, projectKey, projectManifest };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function verifyCheckoutSession(sessionId) {
+  if (!sessionId) return false;
+  const r = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+  const json = await r.json();
+  if (!r.ok) throw new Error(json.error || 'Could not verify checkout session');
+  return !!json.paid;
+}
+
+function showPaidRecoveryMessage(downloaded) {
+  const hint = document.getElementById('export-hint');
+  if (!hint) return;
+  if (downloaded === true) {
+    hint.textContent = 'Payment confirmed - your clean file is downloading now.';
+  } else if (window._lastAtlasArgs || window._lastPhotoLogArgs) {
+    hint.textContent = 'Payment verified - click Download Printable HTML to save your clean file.';
+  } else {
+    hint.textContent = 'Payment verified. If this page was reloaded, select the photos and resume draft again, then regenerate the clean export.';
+  }
+}
+
+function unlockPaidExport(sessionId, options = {}) {
+  const projectKey = options.projectKey || currentProjectKey;
+  const projectManifest = options.projectManifest || currentProjectManifest;
+  rememberPaidSession(sessionId, projectKey, projectManifest);
+  if (currentProjectKey && !storedProjectMatchesCurrent({ projectKey, projectManifest })) {
+    showPaidRecoveryMessage(false);
+    return;
+  }
+  if (!currentProjectKey) return;
+  setPaid(true, projectKey);
+  let downloaded = false;
+  if (options.autoDownload) {
+    downloaded = window.autoDownloadCleanExport?.() === true;
+    if (!downloaded && !window.autoDownloadCleanExport) {
+      window.pendingCleanExportDownload = true;
+    }
+  }
+  showPaidRecoveryMessage(downloaded);
 }
 
 function updateExportUI() {
@@ -50,10 +156,9 @@ function updateExportUI() {
   }
 }
 
-/* ---- Check for Stripe return or admin bypass ------------- */
-(function checkPaymentReturn() {
+/* ---- Admin bypass ---------------------------------------- */
+(function checkAdminBypass() {
   const params    = new URLSearchParams(window.location.search);
-  const sessionId = params.get('session_id');
   const adminTok  = params.get('admin');
 
   if (adminTok) {
@@ -66,32 +171,37 @@ function updateExportUI() {
       .catch(err  => console.warn('Admin unlock failed:', err));
   }
 
+})();
+
+(function recoverPaymentUnlock() {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+
   if (sessionId) {
-    /* This page loaded inside the Stripe return popup.
-       The original tab is polling the server independently — we just need
-       to close this popup gracefully. */
     const clean = new URL(window.location.href);
     clean.searchParams.delete('session_id');
     window.history.replaceState({}, '', clean.toString());
 
-    window.close();
-    /* If window.close() is blocked, show a simple confirmation — don't run
-       the full app, just tell the user to switch back to their original tab. */
-    setTimeout(() => {
-      document.body.innerHTML = `
-        <div style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:2rem;
-                    text-align:center;background:#0f172a;color:#f1f5f9;
-                    border-radius:12px;border:1px solid #334155">
-          <div style="font-size:2.5rem;margin-bottom:1rem">✓</div>
-          <h2 style="margin:0 0 0.75rem;color:#fff">Payment confirmed!</h2>
-          <p style="color:#94a3b8;margin:0 0 1.5rem">
-            Switch back to the Photo Log Atlas Builder tab —
-            your clean file will download automatically.
-          </p>
-          <p style="color:#64748b;font-size:0.8rem">You can close this tab.</p>
-        </div>`;
-    }, 200);
+    verifyCheckoutSession(sessionId)
+      .then(isPaid => {
+        if (!isPaid) return;
+        const pending = getStoredCheckoutSession(PENDING_SESSION_KEY);
+        const projectKey = pending && pending.sessionId === sessionId ? pending.projectKey : currentProjectKey;
+        const projectManifest = pending && pending.sessionId === sessionId ? pending.projectManifest : currentProjectManifest;
+        unlockPaidExport(sessionId, { autoDownload: true, projectKey, projectManifest });
+        if (window.opener && !window.opener.closed) window.close();
+      })
+      .catch(err => console.warn('Stripe return verification failed:', err));
+    return;
   }
+
+  try {
+      const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
+    if (!rememberedSession) return;
+    verifyCheckoutSession(rememberedSession.sessionId)
+      .then(isPaid => { if (isPaid) unlockPaidExport(rememberedSession.sessionId, { autoDownload: false, projectKey: rememberedSession.projectKey, projectManifest: rememberedSession.projectManifest }); })
+      .catch(err => console.warn('Stored checkout verification failed:', err));
+  } catch (_) { /* localStorage may be unavailable */ }
 })();
 
 /* ---- DOM refs -------------------------------------------- */
@@ -102,9 +212,11 @@ const exportHint          = document.getElementById('export-hint');
 
 const photoFilesInput   = document.getElementById('photo-files');
 const photoFolderInput  = document.getElementById('photo-folder');
+const draftFileInput    = document.getElementById('draft-file');
 const qgisPathInput     = document.getElementById('qgis-path');
 const extractBtn        = document.getElementById('extract-btn');
 const selectionSummary  = document.getElementById('selection-summary');
+const draftStatus       = document.getElementById('draft-status');
 const extractStatus     = document.getElementById('extract-status');
 const extractWarnings   = document.getElementById('extract-warnings');
 
@@ -114,6 +226,7 @@ const step4El           = document.getElementById('step-4');
 
 const reviewTbody       = document.getElementById('review-tbody');
 const includedCountEl   = document.getElementById('included-count');
+const saveDraftBtn      = document.getElementById('save-draft-btn');
 const selectAllBtn      = document.getElementById('select-all-btn');
 const deselectAllBtn    = document.getElementById('deselect-all-btn');
 const gotoSettingsBtn   = document.getElementById('goto-settings-btn');
@@ -133,6 +246,7 @@ const generateError     = document.getElementById('generate-error');
 
 const downloadCsvBtn    = document.getElementById('download-csv');
 const downloadGeojsonBtn= document.getElementById('download-geojson');
+const downloadDraftBtn  = document.getElementById('download-draft');
 
 /* ---- File selection -------------------------------------- */
 
@@ -154,6 +268,305 @@ function onFilesChosen(fileList) {
 
 photoFilesInput.addEventListener('change', () => onFilesChosen(photoFilesInput.files));
 photoFolderInput.addEventListener('change', () => onFilesChosen(photoFolderInput.files));
+
+function normalizeRelativePath(path) {
+  return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
+}
+
+function getRelativePath(file) {
+  return file.webkitRelativePath || file.name;
+}
+
+function getDraftFeatures(draft) {
+  return Array.isArray(draft?.features) ? draft.features : [];
+}
+
+function readSettingsFromInputs() {
+  atlasSettings.title    = atlasTitleInput?.value.trim() || '';
+  atlasSettings.subtitle = atlasSubtitleInput?.value.trim() || '';
+  atlasSettings.labelField = labelFieldSelect?.value || 'photoNumber';
+  atlasSettings.mapZoom  = parseInt(mapZoomSlider?.value, 10) || 16;
+  atlasSettings.layout   = getLayoutValue();
+  atlasSettings.mode     = getOutputMode();
+  readBrandingSettings();
+}
+
+function applySettingsToInputs(settings = {}) {
+  if (atlasTitleInput && settings.title !== undefined) atlasTitleInput.value = settings.title || '';
+  if (atlasSubtitleInput && settings.subtitle !== undefined) atlasSubtitleInput.value = settings.subtitle || '';
+  if (labelFieldSelect && settings.labelField) labelFieldSelect.value = settings.labelField;
+  if (mapZoomSlider && settings.mapZoom) {
+    mapZoomSlider.value = settings.mapZoom;
+    zoomDisplay.textContent = settings.mapZoom;
+  }
+  if (settings.layout) {
+    const layout = document.querySelector(`input[name="atlas-layout"][value="${settings.layout}"]`);
+    if (layout) layout.checked = true;
+  }
+  if (settings.mode) {
+    const mode = document.querySelector(`input[name="output-mode"][value="${settings.mode}"]`);
+    if (mode) mode.checked = true;
+  }
+  const companyInput = document.getElementById('company-name');
+  const projectInput = document.getElementById('project-name');
+  const footerInput = document.getElementById('show-footer');
+  if (companyInput && settings.companyName !== undefined) companyInput.value = settings.companyName || '';
+  if (projectInput && settings.projectName !== undefined) projectInput.value = settings.projectName || '';
+  if (footerInput && settings.showFooter !== undefined) footerInput.checked = !!settings.showFooter;
+  if (settings.accentColor && /^#[0-9A-Fa-f]{6}$/.test(settings.accentColor)) {
+    accentColorPicker.value = settings.accentColor;
+    accentColorHex.value = settings.accentColor.toUpperCase();
+  }
+  readSettingsFromInputs();
+}
+
+function draftPropertiesForPhoto(p) {
+  return {
+    photoNumber: p.photoNumber,
+    fileName: p.fileName,
+    relativePath: p.relativePath || p.fileName,
+    fileSize: p.fileSize || null,
+    lastModified: p.lastModified || null,
+    date: p.date || '',
+    comment: p.comment || '',
+    include: p.include !== false,
+    ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
+    RelativeAltitude: p.relativeAltitude,
+    FlightYawDegree: p.flightYawDegree,
+    GimbalYawDegree: p.gimbalYawDegree
+  };
+}
+
+function buildReviewDraft() {
+  readSettingsFromInputs();
+  const features = photos.map(p => {
+    const geometry = p.latitude !== null && p.longitude !== null
+      ? { type: 'Point', coordinates: [p.longitude, p.latitude] }
+      : null;
+    return {
+      type: 'Feature',
+      properties: draftPropertiesForPhoto(p),
+      geometry
+    };
+  });
+  return {
+    type: 'FeatureCollection',
+    metadata: {
+      app: 'Broken Arrow Photo Atlas',
+      draftSchemaVersion: DRAFT_SCHEMA_VERSION,
+      createdAt: new Date().toISOString(),
+      projectKey: currentProjectKey || (photos.length ? buildProjectKey(buildProjectManifest()) : ''),
+      projectManifest: currentProjectManifest.length ? currentProjectManifest : buildProjectManifest(),
+      settings: { ...atlasSettings, logoDataUrl: '' },
+      hasBoundary: !!boundaryGeoJson
+    },
+    features
+  };
+}
+
+function getDraftFilename() {
+  const base = (atlasSettings.title || 'photo_atlas_review_draft')
+    .replace(/[^a-zA-Z0-9_\- ]/g, '')
+    .trim()
+    .replace(/\s+/g, '_') || 'photo_atlas_review_draft';
+  return `${base}_review_draft.geojson`;
+}
+
+function simpleHash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+function buildProjectManifest() {
+  return photos.map(p => [
+    normalizeRelativePath(p.relativePath || p.fileName),
+    p.fileSize || '',
+    p.date || ''
+  ].join('|')).sort();
+}
+
+function buildProjectKey(manifest = currentProjectManifest) {
+  return simpleHash(manifest.join('\n'));
+}
+
+function storedProjectMatchesCurrent(stored) {
+  if (!stored || !currentProjectKey) return false;
+  if (stored.projectKey === currentProjectKey) return true;
+
+  const storedManifest = Array.isArray(stored.projectManifest) ? stored.projectManifest : [];
+  if (!storedManifest.length || !currentProjectManifest.length) return false;
+
+  const current = new Set(currentProjectManifest);
+  const overlap = storedManifest.filter(item => current.has(item)).length;
+  const storedRatio = overlap / storedManifest.length;
+  const currentRatio = overlap / currentProjectManifest.length;
+  return storedRatio >= PROJECT_MATCH_THRESHOLD && currentRatio >= PROJECT_MATCH_THRESHOLD;
+}
+
+async function applyStoredPaymentForCurrentProject() {
+  if (!currentProjectKey) return;
+  const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
+  if (!storedProjectMatchesCurrent(rememberedSession)) {
+    setPaid(false, '');
+    return;
+  }
+  try {
+    const isPaid = await verifyCheckoutSession(rememberedSession.sessionId);
+    if (isPaid) {
+      unlockPaidExport(rememberedSession.sessionId, {
+        autoDownload: false,
+        projectKey: rememberedSession.projectKey,
+        projectManifest: rememberedSession.projectManifest
+      });
+    } else {
+      setPaid(false, '');
+    }
+  } catch (err) {
+    console.warn('Stored checkout verification failed:', err);
+  }
+}
+
+function saveRecoveryDraftToStorage() {
+  if (!photos.length) return false;
+  try {
+    localStorage.setItem(RECOVERY_DRAFT_KEY, JSON.stringify(buildReviewDraft()));
+    lastDraftSavedAt = new Date();
+    return true;
+  } catch (err) {
+    console.warn('Could not save recovery draft:', err);
+    return false;
+  }
+}
+
+function downloadReviewDraft() {
+  if (!photos.length) {
+    alert('Select and extract photos before saving a review draft.');
+    return false;
+  }
+  const draft = buildReviewDraft();
+  saveRecoveryDraftToStorage();
+  triggerDownload(JSON.stringify(draft, null, 2), getDraftFilename(), 'application/geo+json');
+  return true;
+}
+
+function featureKeyMaps(draft) {
+  const byRelativePath = new Map();
+  const byNameSize = new Map();
+  const byFileName = new Map();
+  const duplicates = new Set();
+
+  getDraftFeatures(draft).forEach((feature, order) => {
+    const props = feature.properties || {};
+    const wrapped = { feature, props, order };
+    const rel = normalizeRelativePath(props.relativePath || props.path || props.fileName);
+    if (rel) byRelativePath.set(rel, wrapped);
+    const name = String(props.fileName || '').toLowerCase();
+    if (name && props.fileSize) byNameSize.set(`${name}|${props.fileSize}`, wrapped);
+    if (name) {
+      if (byFileName.has(name)) duplicates.add(name);
+      byFileName.set(name, wrapped);
+    }
+  });
+
+  duplicates.forEach(name => byFileName.delete(name));
+  return { byRelativePath, byNameSize, byFileName };
+}
+
+function matchDraftFeature(photo, maps) {
+  const rel = normalizeRelativePath(photo.relativePath || photo.fileName);
+  const name = String(photo.fileName || '').toLowerCase();
+  return maps.byRelativePath.get(rel)
+    || maps.byNameSize.get(`${name}|${photo.fileSize}`)
+    || maps.byFileName.get(name)
+    || null;
+}
+
+function applyDraftToPhotos(draft) {
+  if (!draft || !photos.length) return;
+  const maps = featureKeyMaps(draft);
+  let matched = 0;
+
+  photos.forEach(photo => {
+    const match = matchDraftFeature(photo, maps);
+    if (!match) {
+      photo._draftOrder = Number.MAX_SAFE_INTEGER;
+      return;
+    }
+    matched += 1;
+    const props = match.props;
+    photo._draftOrder = match.order;
+    photo.include = props.include !== false;
+    photo.photoNumber = Number(props.photoNumber) || photo.photoNumber;
+    photo.comment = props.comment || '';
+    photo.date = props.date || photo.date || '';
+    photo.localQgisPath = props.path || photo.localQgisPath || null;
+    photo.relativeAltitude = asFloat(props.RelativeAltitude, photo.relativeAltitude);
+    photo.flightYawDegree = asFloat(props.FlightYawDegree, photo.flightYawDegree);
+    photo.gimbalYawDegree = asFloat(props.GimbalYawDegree, photo.gimbalYawDegree);
+    if (match.feature.geometry?.type === 'Point') {
+      const coords = match.feature.geometry.coordinates || [];
+      photo.longitude = asFloat(coords[0], photo.longitude);
+      photo.latitude = asFloat(coords[1], photo.latitude);
+    }
+  });
+
+  photos.sort((a, b) => {
+    if (a._draftOrder !== b._draftOrder) return a._draftOrder - b._draftOrder;
+    return a.photoNumber - b.photoNumber;
+  });
+  photos.forEach((p, idx) => {
+    delete p._draftOrder;
+    if (!p.photoNumber) p.photoNumber = idx + 1;
+  });
+
+  applySettingsToInputs(draft.metadata?.settings || {});
+  if (draftStatus) {
+    const total = photos.length;
+    draftStatus.textContent = `Draft applied: matched ${matched} of ${total} selected photo${total !== 1 ? 's' : ''}.`;
+    draftStatus.className = 'draft-status';
+    draftStatus.classList.remove('hidden');
+  }
+}
+
+draftFileInput.addEventListener('change', () => {
+  const file = draftFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) {
+        throw new Error('Draft must be a GeoJSON FeatureCollection.');
+      }
+      pendingDraft = parsed;
+      pendingDraftName = file.name;
+      if (draftStatus) {
+        draftStatus.textContent = photos.length
+          ? `Loaded draft ${file.name}. Applying to selected photos...`
+          : `Loaded draft ${file.name}. Now select the matching photo folder and extract EXIF.`;
+        draftStatus.className = 'draft-status';
+        draftStatus.classList.remove('hidden');
+      }
+      if (photos.length) {
+        applyDraftToPhotos(pendingDraft);
+        renderReviewTable();
+      }
+    } catch (err) {
+      pendingDraft = null;
+      pendingDraftName = '';
+      if (draftStatus) {
+        draftStatus.textContent = `Could not read draft file. ${err.message}`;
+        draftStatus.className = 'draft-status error';
+        draftStatus.classList.remove('hidden');
+      }
+    }
+  };
+  reader.readAsText(file);
+});
 
 /* ---- EXIF extraction ------------------------------------- */
 
@@ -230,10 +643,14 @@ extractBtn.addEventListener('click', async () => {
       const yaw = asFloat(exif.FlightYawDegree ?? exif.GimbalYawDegree);
       const gimbalYaw = asFloat(exif.GimbalYawDegree);
       const path = qgisBase ? `${qgisBase}/${file.name}` : null;
+      const relativePath = getRelativePath(file);
       return {
         include: true,
         photoNumber: idx + 1,
         fileName: file.name,
+        relativePath,
+        fileSize: file.size,
+        lastModified: file.lastModified,
         date: getDate(exif),
         comment: '',
         objectUrl: URL.createObjectURL(file),
@@ -247,10 +664,14 @@ extractBtn.addEventListener('click', async () => {
       };
     } catch (err) {
       console.warn('EXIF parse error', file.name, err);
+      const relativePath = getRelativePath(file);
       return {
         include: true,
         photoNumber: idx + 1,
         fileName: file.name,
+        relativePath,
+        fileSize: file.size,
+        lastModified: file.lastModified,
         date: '',
         comment: '',
         objectUrl: URL.createObjectURL(file),
@@ -288,6 +709,10 @@ extractBtn.addEventListener('click', async () => {
   extractBtn.disabled = false;
 
   populateLabelFieldDropdown();
+  if (pendingDraft) applyDraftToPhotos(pendingDraft);
+  currentProjectManifest = buildProjectManifest();
+  currentProjectKey = buildProjectKey(currentProjectManifest);
+  await applyStoredPaymentForCurrentProject();
   renderReviewTable();
   step2El.classList.remove('hidden');
   step2El.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -386,6 +811,8 @@ deselectAllBtn.addEventListener('click', () => {
   photos.forEach(p => p.include = false);
   renderReviewTable();
 });
+
+saveDraftBtn.addEventListener('click', downloadReviewDraft);
 
 gotoSettingsBtn.addEventListener('click', () => {
   step3El.classList.remove('hidden');
@@ -627,6 +1054,7 @@ generateAtlasBtn.addEventListener('click', async () => {
   step5El.classList.remove('hidden');
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;
+  if (downloadDraftBtn) downloadDraftBtn.disabled = false;
   if (unlockExportBtn && !paid) unlockExportBtn.disabled = false;
   updateExportUI();
   step5El.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -640,6 +1068,11 @@ if (unlockExportBtn) {
        so the popup blocker treats it as a user gesture — then navigate
        it to the Stripe URL once we have it. */
     const stripeTab = window.open('', '_blank');
+    if (photos.length) {
+      const draft = buildReviewDraft();
+      saveRecoveryDraftToStorage();
+      triggerDownload(JSON.stringify(draft, null, 2), getDraftFilename(), 'application/geo+json');
+    }
 
     unlockExportBtn.disabled = true;
     unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Connecting to Stripe\u2026';
@@ -660,6 +1093,7 @@ if (unlockExportBtn) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+      rememberPendingSession(data.sessionId, currentProjectKey, currentProjectManifest);
 
       if (!stripeTab) {
         /* Popup was blocked — abort entirely rather than navigating away and
@@ -678,7 +1112,8 @@ if (unlockExportBtn) {
 
       function handleUnlock() {
         clearInterval(serverPoll);
-        setPaid(true);
+        rememberPaidSession(sessionId, currentProjectKey, currentProjectManifest);
+        setPaid(true, currentProjectKey);
         const downloaded = window.autoDownloadCleanExport?.();
         const hint = document.getElementById('export-hint');
         if (hint) {
@@ -735,6 +1170,10 @@ downloadCsvBtn.addEventListener('click', () => {
   triggerDownload(rows.join('\n'), 'photo_log.csv', 'text/csv');
 });
 
+if (downloadDraftBtn) {
+  downloadDraftBtn.addEventListener('click', downloadReviewDraft);
+}
+
 /* ---- GeoJSON export -------------------------------------- */
 
 downloadGeojsonBtn.addEventListener('click', () => {
@@ -745,8 +1184,12 @@ downloadGeojsonBtn.addEventListener('click', () => {
     const props = {
       photoNumber:      p.photoNumber,
       fileName:         p.fileName,
+      relativePath:     p.relativePath || p.fileName,
+      fileSize:         p.fileSize || null,
+      lastModified:     p.lastModified || null,
       date:             p.date,
       comment:          p.comment,
+      include:          p.include !== false,
       ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
       RelativeAltitude: p.relativeAltitude,
       FlightYawDegree:  p.flightYawDegree,
