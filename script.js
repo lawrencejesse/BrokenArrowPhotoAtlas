@@ -79,11 +79,12 @@ function updateExportUI() {
           /* Persist the payment so the user doesn't lose it on page refresh */
           localStorage.setItem('stripe_verified_session', id);
           if (signalOriginalTab) {
-            /* This is the Stripe return popup — signal the original tab and close */
+            /* Signal the original tab via the storage event (instant cross-tab) */
             localStorage.setItem('stripe_unlocked', '1');
             window.close();
-            /* Fallback if window.close() is blocked */
-            document.body.innerHTML = '<div style="font-family:sans-serif;padding:2rem;text-align:center"><h2>Payment confirmed!</h2><p>You can close this tab and return to the Photo Log Atlas Builder.</p></div>';
+            /* If window.close() is blocked, redirect back to the app —
+               stripe_verified_session is already stored so it will auto-unlock */
+            setTimeout(() => { window.location.replace('/'); }, 600);
           } else {
             setPaid(true);
           }
@@ -680,21 +681,39 @@ if (unlockExportBtn) {
         window.location.href = data.url;
       }
 
-      /* Poll localStorage for the signal set by the Stripe return tab */
+      /* Wait for the popup to signal payment completion */
       localStorage.removeItem('stripe_unlocked');
       unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Waiting for payment\u2026';
 
-      const pollInterval = setInterval(() => {
-        if (localStorage.getItem('stripe_unlocked') === '1') {
-          clearInterval(pollInterval);
-          localStorage.removeItem('stripe_unlocked');
-          localStorage.removeItem('pending_stripe_session');
-          setPaid(true);
-        }
-      }, 1500);
+      function handleUnlock() {
+        window.removeEventListener('storage', onStorageUnlock);
+        clearInterval(pollInterval);
+        localStorage.removeItem('stripe_unlocked');
+        localStorage.removeItem('pending_stripe_session');
+        setPaid(true);
+      }
 
-      /* Stop polling after 15 minutes to avoid running forever */
+      /* Primary: storage event fires instantly in this tab when the popup writes
+         stripe_unlocked to localStorage */
+      function onStorageUnlock(e) {
+        if (e.key === 'stripe_unlocked' && e.newValue === '1') handleUnlock();
+      }
+      window.addEventListener('storage', onStorageUnlock);
+
+      /* Fallback: poll every second in case the storage event is suppressed
+         (e.g. same-tab flow or unusual browser behaviour) */
+      const pollInterval = setInterval(() => {
+        if (localStorage.getItem('stripe_unlocked') === '1') handleUnlock();
+        /* Also unlock immediately if stripe_verified_session was written
+           (covers the redirect-back-to-app fallback path) */
+        if (!window.paidExportUnlocked && localStorage.getItem('stripe_verified_session')) {
+          handleUnlock();
+        }
+      }, 1000);
+
+      /* Stop listening after 15 minutes to avoid running forever */
       setTimeout(() => {
+        window.removeEventListener('storage', onStorageUnlock);
         clearInterval(pollInterval);
         if (!window.paidExportUnlocked) resetBtn();
       }, 15 * 60 * 1000);
