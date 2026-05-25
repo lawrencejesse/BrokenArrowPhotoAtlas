@@ -56,6 +56,10 @@ function updateExportUI() {
   const sessionId = params.get('session_id');
   const adminTok  = params.get('admin');
 
+  /* Restore paid state if user already paid in this browser */
+  const storedVerified = localStorage.getItem('stripe_verified_session');
+  if (storedVerified) setPaid(true);
+
   if (adminTok) {
     const clean = new URL(window.location.href);
     clean.searchParams.delete('admin');
@@ -72,8 +76,10 @@ function updateExportUI() {
       .then(data => {
         if (data.paid) {
           localStorage.removeItem('pending_stripe_session');
+          /* Persist the payment so the user doesn't lose it on page refresh */
+          localStorage.setItem('stripe_verified_session', id);
           if (signalOriginalTab) {
-            /* This is the Stripe return tab — signal the original tab and close */
+            /* This is the Stripe return popup — signal the original tab and close */
             localStorage.setItem('stripe_unlocked', '1');
             window.close();
             /* Fallback if window.close() is blocked */
@@ -90,7 +96,11 @@ function updateExportUI() {
     const clean = new URL(window.location.href);
     clean.searchParams.delete('session_id');
     window.history.replaceState({}, '', clean.toString());
-    verifySession(sessionId, { signalOriginalTab: true });
+    /* stripe_same_tab is set when popup was blocked and we navigated this tab to Stripe.
+       In that case we want to unlock THIS tab, not signal a parent. */
+    const sameTab = localStorage.getItem('stripe_same_tab') === '1';
+    localStorage.removeItem('stripe_same_tab');
+    verifySession(sessionId, { signalOriginalTab: !sameTab });
     return;
   }
 
@@ -623,6 +633,9 @@ if (unlockExportBtn) {
       if (stripeTab) {
         stripeTab.location.href = data.url;
       } else {
+        /* Popup was blocked — flag that we're navigating THIS tab so the
+           success return knows to unlock directly instead of signalling a parent */
+        localStorage.setItem('stripe_same_tab', '1');
         window.location.href = data.url;
       }
 
