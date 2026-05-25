@@ -101,26 +101,29 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  align-items: flex-start;
+  justify-content: flex-start;
   min-height: 0;
 }
 
 .pl-photo-block.empty { visibility: hidden; }
 
 .pl-photo {
-  flex: 1;
   border: 1.5px solid #222;
   background: #e5e7eb;
   overflow: hidden;
-  min-height: 0;
+  /* aspect-ratio is set inline per-image; constrain so it never exceeds the block */
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
 }
 
 .pl-photo img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  display: block;
-  background: #f0f0f0;
+  object-fit: cover;
 }
 
 .pl-caption {
@@ -230,9 +233,10 @@ function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, wa
 
   function blockHtml(item, isEmpty) {
     if (isEmpty) return `<div class="pl-photo-block empty"><div class="pl-photo"></div></div>`;
+    const arStyle = item.aspectRatio ? ` style="aspect-ratio:${escHtml(item.aspectRatio)}"` : '';
     return `
 <div class="pl-photo-block">
-  <div class="pl-photo">
+  <div class="pl-photo"${arStyle}>
     <img src="${escHtml(item.src)}" alt="${escHtml(item.fileName)}" loading="eager">
   </div>
   ${captionHtml(item)}
@@ -324,21 +328,36 @@ ${pagesHtml}
 </html>`;
 }
 
+/* ---- Helper: measure natural image dimensions ------------ */
+
+function measureImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve({ w: img.naturalWidth,  h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 0, h: 0 });
+    img.src = src;
+  });
+}
+
 /* ---- Public entry point ---------------------------------- */
 
 async function buildPhotoLog(included, settings, watermark) {
   if (watermark === undefined) watermark = true;
   const dataUrls = await Promise.all(included.map(p => toDataUrl(p.objectUrl)));
+  const dims     = await Promise.all(dataUrls.map(src => measureImage(src)));
 
   const photoData = included.map((p, i) => {
     const labelVal = p[settings.labelField] ?? p.photoNumber;
     const altStr   = p.relativeAltitude != null
       ? `${parseFloat(p.relativeAltitude).toFixed(0)} m`
       : '';
+    const { w, h } = dims[i];
+    const aspectRatio = (w > 0 && h > 0) ? `${w}/${h}` : null;
     return {
-      id:       `photo-${i + 1}`,
-      src:      dataUrls[i],
-      fileName: p.fileName,
+      id:          `photo-${i + 1}`,
+      src:         dataUrls[i],
+      fileName:    p.fileName,
+      aspectRatio,
       caption: {
         photo:    String(labelVal ?? ''),
         date:     p.date    ?? '',
