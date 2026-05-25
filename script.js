@@ -332,6 +332,7 @@ function renderReviewTable() {
     tr.innerHTML = `
       <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span></td>
       <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
+      <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="" loading="lazy" draggable="false"></td>
       <td class="col-num">${photo.photoNumber}</td>
       <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
       <td class="col-date">${esc(photo.date)}</td>
