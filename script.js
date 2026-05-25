@@ -678,15 +678,20 @@ if (unlockExportBtn) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
-      if (data.sessionId) localStorage.setItem('pending_stripe_session', data.sessionId);
-      if (stripeTab) {
-        stripeTab.location.href = data.url;
-      } else {
-        /* Popup was blocked — flag that we're navigating THIS tab so the
-           success return knows to unlock directly instead of signalling a parent */
-        localStorage.setItem('stripe_same_tab', '1');
-        window.location.href = data.url;
+
+      if (!stripeTab) {
+        /* Popup was blocked — abort entirely rather than navigating away and
+           losing the user's photo session. Show a clear message instead. */
+        const hint = document.getElementById('export-hint');
+        if (hint) {
+          hint.innerHTML = '<strong style="color:#f87171">Popup blocked.</strong> Please allow popups for this site in your browser, then click the button again.';
+        }
+        resetBtn();
+        return;
       }
+
+      if (data.sessionId) localStorage.setItem('pending_stripe_session', data.sessionId);
+      stripeTab.location.href = data.url;
 
       /* Wait for the popup to signal payment completion */
       localStorage.removeItem('stripe_unlocked');
@@ -698,7 +703,13 @@ if (unlockExportBtn) {
         localStorage.removeItem('stripe_unlocked');
         localStorage.removeItem('pending_stripe_session');
         setPaid(true);
-        window.autoDownloadCleanExport?.();
+        const downloaded = window.autoDownloadCleanExport?.();
+        const hint = document.getElementById('export-hint');
+        if (hint) {
+          hint.textContent = downloaded === false
+            ? 'Export unlocked — click Download Printable HTML below to save your clean file.'
+            : 'Payment confirmed — your clean file is downloading now.';
+        }
       }
 
       /* Primary: storage event fires instantly in this tab when the popup writes

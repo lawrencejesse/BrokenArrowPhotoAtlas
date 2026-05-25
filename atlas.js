@@ -139,13 +139,15 @@ function triggerHtmlDownload(html, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-/* Called automatically after payment is confirmed */
+/* Called automatically after payment is confirmed.
+   Returns true if a file was downloaded, false if there was nothing to render. */
 window.autoDownloadCleanExport = function() {
   const html = buildDownloadHtml(true);
-  if (!html) return;
+  if (!html) return false;
   const dlBtn   = document.getElementById('download-atlas-html');
   const filename = (dlBtn && dlBtn.dataset.filename) || 'photo_atlas.html';
   triggerHtmlDownload(html, filename);
+  return true;
 };
 
 (function wireDownloadBtn() {
