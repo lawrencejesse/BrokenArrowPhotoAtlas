@@ -219,10 +219,9 @@ function buildPhotoLogPage(pair, pageNum, totalPages, branding, headerFields, wa
   function captionHtml(item) {
     const c = item.caption;
     const numPart  = `<span class="pl-cap-label">PHOTO:</span> ${escHtml(c.photo)}`;
-    const datePart = c.date     ? `&nbsp;&nbsp;<span class="pl-cap-label">DATE:</span> ${escHtml(c.date)}`     : '';
-    const altPart  = c.altitude ? `&nbsp;&nbsp;<span class="pl-cap-label">ALT:</span> ${escHtml(c.altitude)}`  : '';
-    const notePart = c.comment  ? `<br><span class="pl-cap-label">NOTE:</span> ${escHtml(c.comment)}` : '';
-    return `<div class="pl-caption"><div>${numPart}${datePart}${altPart}</div>${notePart ? `<div>${notePart}</div>` : ''}</div>`;
+    const altPart  = c.altitude ? `&nbsp;&nbsp;<span class="pl-cap-label">ALT:</span> ${escHtml(c.altitude)}` : '';
+    const notePart = c.comment  ? `<br>${escHtml(c.comment)}` : '';
+    return `<div class="pl-caption"><div>${numPart}${altPart}</div>${notePart ? `<div>${notePart}</div>` : ''}</div>`;
   }
 
   function blockHtml(item, isEmpty) {
@@ -278,8 +277,8 @@ function renderPhotoLogHtml(photoData, settings, watermark) {
   }
 
   const headerFields = {
-    client:   settings.companyName || settings.title || '',
-    location: settings.subtitle    || '',
+    client:   settings.companyName || '',
+    location: settings.title       || '',
     date:     dateRange
   };
 
@@ -300,7 +299,7 @@ function renderPhotoLogHtml(photoData, settings, watermark) {
     accentColor
   };
 
-  const titleSafe = escHtml(settings.title || 'Photo Log');
+  const titleSafe = escHtml(settings.subtitle || settings.title || 'Photo Log');
 
   const pagesHtml = pairs.map((pair, idx) =>
     buildPhotoLogPage(pair, idx + 1, totalPages, branding, headerFields, watermark)
