@@ -364,7 +364,8 @@ function draftPropertiesForPhoto(p) {
     FlightYawDegree: p.flightYawDegree,
     GimbalYawDegree: p.gimbalYawDegree,
     bearingDegree: p.bearingDegree,
-    bearingSource: p.bearingSource || ''
+    bearingSource: p.bearingSource || '',
+    bearingManual: !!p.bearingManual
   };
 }
 
@@ -538,6 +539,7 @@ function applyDraftToPhotos(draft) {
     photo.relativeAltitude = asFloat(props.RelativeAltitude, photo.relativeAltitude);
     photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
     photo.bearingSource = props.bearingSource || props.BearingSource || props.DirectionSource || photo.bearingSource || '';
+    photo.bearingManual = !!props.bearingManual || photo.bearingSource === 'Manual';
     photo.flightYawDegree = photo.bearingDegree;
     photo.gimbalYawDegree = asFloat(props.GimbalYawDegree, photo.gimbalYawDegree);
     if (match.feature.geometry?.type === 'Point') {
@@ -644,6 +646,18 @@ function normalizeBearing(value) {
   return ((n % 360) + 360) % 360;
 }
 
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const toRad = deg => deg * Math.PI / 180;
+  const toDeg = rad => rad * 180 / Math.PI;
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const deltaLambda = toRad(lon2 - lon1);
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+  return normalizeBearing(toDeg(Math.atan2(y, x)));
+}
+
 function parseUserCommentYaw(exif) {
   const comment = exif.UserComment ?? exif.userComment ?? exif.UserComments;
   if (!comment) return null;
@@ -688,6 +702,7 @@ function applyBearingFieldToPhotos() {
   const selectedField = bearingFieldSelect?.value || 'auto';
   atlasSettings.bearingField = selectedField;
   photos.forEach(photo => {
+    if (photo.bearingManual) return;
     const resolved = resolveBearing(photo.exif || {}, selectedField);
     photo.bearingDegree = resolved.value;
     photo.bearingSource = resolved.source;
@@ -751,6 +766,7 @@ extractBtn.addEventListener('click', async () => {
         flightYawDegree: bearing.value,
         bearingDegree: bearing.value,
         bearingSource: bearing.source,
+        bearingManual: false,
         gimbalYawDegree: gimbalYaw,
         exif
       };
@@ -774,6 +790,7 @@ extractBtn.addEventListener('click', async () => {
         flightYawDegree: null,
         bearingDegree: null,
         bearingSource: '',
+        bearingManual: false,
         gimbalYawDegree: null,
         exif: {}
       };
@@ -845,7 +862,13 @@ function renderReviewTable() {
       <td class="col-coord">${fmtCoord(photo.latitude)}</td>
       <td class="col-coord">${fmtCoord(photo.longitude)}</td>
       <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
-      <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">${fmtNum(photo.bearingDegree)}</td>
+      <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">
+        <div class="direction-cell">
+          <span>${fmtNum(photo.bearingDegree)}</span>
+          <span class="direction-source">${esc(photo.bearingSource || '')}</span>
+          <button type="button" class="btn-ghost direction-set-btn" data-idx="${i}">Set</button>
+        </div>
+      </td>
       <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment…">${esc(photo.comment)}</textarea></td>
     `;
 
@@ -857,6 +880,10 @@ function renderReviewTable() {
 
     tr.querySelector('.comment-input').addEventListener('input', e => {
       photos[i].comment = e.target.value;
+    });
+
+    tr.querySelector('.direction-set-btn').addEventListener('click', () => {
+      openDirectionModal(i);
     });
 
     /* --- Drag-and-drop handlers --- */
@@ -993,6 +1020,170 @@ if (bearingFieldSelect) {
   bearingFieldSelect.addEventListener('change', () => {
     applyBearingFieldToPhotos();
     renderReviewTable();
+  });
+}
+
+/* ---- Manual photo direction editor ----------------------- */
+
+const directionModal = document.getElementById('direction-modal');
+const directionPhoto = document.getElementById('direction-photo');
+const directionPhotoMeta = document.getElementById('direction-photo-meta');
+const directionSubtitle = document.getElementById('direction-modal-subtitle');
+const directionReadout = document.getElementById('direction-bearing-readout');
+const directionSaveBtn = document.getElementById('direction-save-btn');
+const directionResetBtn = document.getElementById('direction-reset-btn');
+const directionCancelBtn = document.getElementById('direction-cancel-btn');
+const directionCloseBtn = document.getElementById('direction-close-btn');
+
+let directionEditIdx = null;
+let directionMap = null;
+let directionBaseLayer = null;
+let directionTargetMarker = null;
+let directionLine = null;
+let pendingManualBearing = null;
+
+function imageryTileLayer() {
+  return L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
+  );
+}
+
+function setDirectionReadout(value, source) {
+  if (!directionReadout) return;
+  if (value === null || value === undefined) {
+    directionReadout.textContent = 'No manual direction set yet.';
+    return;
+  }
+  directionReadout.textContent = `${value.toFixed(1)} deg${source ? ` (${source})` : ''}`;
+}
+
+function updateDirectionPreview(photo, targetLatLng) {
+  if (!directionMap || !photo) return;
+  const origin = [photo.latitude, photo.longitude];
+  const target = [targetLatLng.lat, targetLatLng.lng];
+  pendingManualBearing = calculateBearing(photo.latitude, photo.longitude, targetLatLng.lat, targetLatLng.lng);
+
+  if (directionTargetMarker) {
+    directionTargetMarker.setLatLng(target);
+  } else {
+    directionTargetMarker = L.circleMarker(target, {
+      radius: 6,
+      color: '#BF9555',
+      weight: 2,
+      fillColor: '#BF9555',
+      fillOpacity: 0.85
+    }).addTo(directionMap);
+  }
+
+  if (directionLine) {
+    directionLine.setLatLngs([origin, target]);
+  } else {
+    directionLine = L.polyline([origin, target], {
+      color: '#BF9555',
+      weight: 3,
+      dashArray: '6,6'
+    }).addTo(directionMap);
+  }
+
+  setDirectionReadout(pendingManualBearing, 'manual preview');
+  if (directionSaveBtn) directionSaveBtn.disabled = false;
+}
+
+function closeDirectionModal() {
+  directionEditIdx = null;
+  pendingManualBearing = null;
+  if (directionModal) directionModal.classList.add('hidden');
+}
+
+function openDirectionModal(idx) {
+  const photo = photos[idx];
+  if (!photo) return;
+  if (photo.latitude === null || photo.longitude === null) {
+    alert('This photo does not have GPS coordinates, so direction cannot be set on a map.');
+    return;
+  }
+  if (typeof L === 'undefined') {
+    alert('Map tools could not load. Check your internet connection and try again.');
+    return;
+  }
+
+  directionEditIdx = idx;
+  pendingManualBearing = null;
+  if (directionPhoto) directionPhoto.src = photo.objectUrl;
+  if (directionPhotoMeta) {
+    directionPhotoMeta.textContent = `${photo.fileName} | ${photo.latitude.toFixed(6)}, ${photo.longitude.toFixed(6)}`;
+  }
+  if (directionSubtitle) {
+    directionSubtitle.textContent = 'Click the map where the camera was facing. Save to override this photo only.';
+  }
+  setDirectionReadout(photo.bearingDegree, photo.bearingSource || 'current');
+  if (directionSaveBtn) directionSaveBtn.disabled = true;
+  if (directionModal) directionModal.classList.remove('hidden');
+
+  setTimeout(() => {
+    const center = [photo.latitude, photo.longitude];
+    if (!directionMap) {
+      directionMap = L.map('direction-map', {
+        zoomControl: true,
+        attributionControl: true
+      });
+      directionBaseLayer = imageryTileLayer().addTo(directionMap);
+      directionMap.on('click', e => {
+        if (directionEditIdx === null) return;
+        updateDirectionPreview(photos[directionEditIdx], e.latlng);
+      });
+    } else if (!directionBaseLayer) {
+      directionBaseLayer = imageryTileLayer().addTo(directionMap);
+    }
+
+    directionMap.setView(center, 17);
+    directionMap.eachLayer(layer => {
+      if (layer instanceof L.Marker || layer instanceof L.CircleMarker || layer instanceof L.Polyline) {
+        directionMap.removeLayer(layer);
+      }
+    });
+    L.marker(center).addTo(directionMap);
+    directionTargetMarker = null;
+    directionLine = null;
+    directionMap.invalidateSize();
+  }, 0);
+}
+
+if (directionSaveBtn) {
+  directionSaveBtn.addEventListener('click', () => {
+    if (directionEditIdx === null || pendingManualBearing === null) return;
+    const photo = photos[directionEditIdx];
+    photo.bearingDegree = pendingManualBearing;
+    photo.flightYawDegree = pendingManualBearing;
+    photo.bearingSource = 'Manual';
+    photo.bearingManual = true;
+    renderReviewTable();
+    closeDirectionModal();
+  });
+}
+
+if (directionResetBtn) {
+  directionResetBtn.addEventListener('click', () => {
+    if (directionEditIdx === null) return;
+    const photo = photos[directionEditIdx];
+    const resolved = resolveBearing(photo.exif || {}, atlasSettings.bearingField || 'auto');
+    photo.bearingDegree = resolved.value;
+    photo.flightYawDegree = resolved.value;
+    photo.bearingSource = resolved.source;
+    photo.bearingManual = false;
+    renderReviewTable();
+    closeDirectionModal();
+  });
+}
+
+[directionCancelBtn, directionCloseBtn].forEach(btn => {
+  if (btn) btn.addEventListener('click', closeDirectionModal);
+});
+
+if (directionModal) {
+  directionModal.addEventListener('click', e => {
+    if (e.target === directionModal) closeDirectionModal();
   });
 }
 
@@ -1313,7 +1504,7 @@ downloadCsvBtn.addEventListener('click', () => {
   const included = photos.filter(p => p.include);
   if (included.length === 0) { alert('No photos selected for export.'); return; }
 
-  const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', 'latitude', 'longitude', 'relativeAltitude', 'bearingDegree', 'bearingSource', 'flightYawDegree'];
+  const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', 'latitude', 'longitude', 'relativeAltitude', 'bearingDegree', 'bearingSource', 'bearingManual', 'flightYawDegree'];
   const rows = [headers.join(',')];
 
   included.forEach(p => {
@@ -1353,6 +1544,7 @@ downloadGeojsonBtn.addEventListener('click', () => {
       RelativeAltitude: p.relativeAltitude,
       bearingDegree:    p.bearingDegree,
       bearingSource:    p.bearingSource || '',
+      bearingManual:    !!p.bearingManual,
       FlightYawDegree:  p.flightYawDegree,
       GimbalYawDegree:  p.gimbalYawDegree
     };

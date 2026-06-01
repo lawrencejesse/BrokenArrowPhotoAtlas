@@ -8,8 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/full.umd.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <div class="app-wrapper">
@@ -454,6 +456,34 @@
         </footer>
 
     </div>
+
+    <div class="direction-modal hidden" id="direction-modal" role="dialog" aria-modal="true" aria-labelledby="direction-modal-title">
+        <div class="direction-modal-card">
+            <div class="direction-modal-header">
+                <div>
+                    <h3 id="direction-modal-title">Set Photo Direction</h3>
+                    <p id="direction-modal-subtitle">Click the map where the camera was facing.</p>
+                </div>
+                <button class="btn-ghost direction-close-btn" id="direction-close-btn" aria-label="Close direction editor">×</button>
+            </div>
+            <div class="direction-modal-body">
+                <div class="direction-photo-panel">
+                    <img id="direction-photo" alt="Selected photo preview">
+                    <div class="direction-photo-meta" id="direction-photo-meta"></div>
+                </div>
+                <div class="direction-map-panel">
+                    <div id="direction-map" class="direction-map"></div>
+                    <div class="direction-bearing-readout" id="direction-bearing-readout">No manual direction set yet.</div>
+                </div>
+            </div>
+            <div class="direction-modal-actions">
+                <button class="btn btn-secondary" id="direction-reset-btn">Reset to EXIF</button>
+                <button class="btn btn-secondary" id="direction-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="direction-save-btn" disabled>Save Direction</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script src="atlas.js"></script>
     <script src="photolog.js"></script>
