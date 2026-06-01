@@ -206,7 +206,7 @@
                                 <th class="col-coord">Latitude</th>
                                 <th class="col-coord">Longitude</th>
                                 <th class="col-alt">Altitude (m)</th>
-                                <th class="col-yaw">Yaw (°)</th>
+                                <th class="col-yaw">Direction (°)</th>
                                 <th class="col-comment">Comment</th>
                             </tr>
                         </thead>
@@ -263,6 +263,13 @@
                             <option value="date">Date</option>
                         </select>
                         <p class="field-hint">This field is used as the "PHOTO:" label in the atlas caption.</p>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label" for="bearing-field">Photo direction field</label>
+                        <select id="bearing-field" class="select-input">
+                            <option value="auto">Auto detect</option>
+                        </select>
+                        <p class="field-hint">Used for map arrows. Auto detect checks drone yaw, GPS image direction, and supported camera-app comments.</p>
                     </div>
                 </div>
 

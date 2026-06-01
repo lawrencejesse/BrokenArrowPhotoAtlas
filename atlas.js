@@ -63,7 +63,7 @@ async function buildAtlas(included, settings, boundary, watermark) {
       id:    `photo-${i + 1}`,
       lat:   p.latitude,
       lon:   p.longitude,
-      yaw:   p.flightYawDegree ?? p.gimbalYawDegree ?? 0,
+      yaw:   p.bearingDegree ?? p.flightYawDegree ?? p.gimbalYawDegree ?? 0,
       src:   dataUrls[i],
       fileName: p.fileName,
       caption: {

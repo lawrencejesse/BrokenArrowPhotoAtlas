@@ -19,11 +19,37 @@ const PENDING_SESSION_KEY = 'ba_photo_atlas_pending_session_id';
 const PAID_SESSION_KEY = 'ba_photo_atlas_paid_session_id';
 const PAYMENT_RECOVERY_MS = 24 * 60 * 60 * 1000;
 const PROJECT_MATCH_THRESHOLD = 0.75;
+const EXIF_PARSE_OPTIONS = {
+  tiff: true,
+  ifd0: true,
+  exif: true,
+  gps: true,
+  xmp: true,
+  userComment: true,
+  mergeOutput: true
+};
+const AUTO_BEARING_FIELDS = [
+  'FlightYawDegree',
+  'GPSImgDirection',
+  'GPSDestBearing',
+  'GimbalYawDegree',
+  'CameraYaw',
+  'CameraYawDegree',
+  'PoseHeadingDegrees',
+  'AbsoluteYaw',
+  'RelativeYaw',
+  'Yaw'
+];
+const SPECIAL_BEARING_FIELDS = [
+  { value: 'auto', label: 'Auto detect' },
+  { value: 'userCommentYaw', label: 'UserComment: Yaw' }
+];
 
 const atlasSettings = {
   title: '',
   subtitle: 'Aerial Photo Summary',
   labelField: 'photoNumber',
+  bearingField: 'auto',
   mapZoom: 16,
   layout: 'landscape',
   boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 },
@@ -234,6 +260,7 @@ const gotoSettingsBtn   = document.getElementById('goto-settings-btn');
 const atlasTitleInput   = document.getElementById('atlas-title');
 const atlasSubtitleInput= document.getElementById('atlas-subtitle');
 const labelFieldSelect  = document.getElementById('label-field');
+const bearingFieldSelect= document.getElementById('bearing-field');
 const mapZoomSlider     = document.getElementById('map-zoom');
 const zoomDisplay       = document.getElementById('zoom-display');
 const boundaryFileInput = document.getElementById('boundary-file');
@@ -285,6 +312,7 @@ function readSettingsFromInputs() {
   atlasSettings.title    = atlasTitleInput?.value.trim() || '';
   atlasSettings.subtitle = atlasSubtitleInput?.value.trim() || '';
   atlasSettings.labelField = labelFieldSelect?.value || 'photoNumber';
+  atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
   atlasSettings.mapZoom  = parseInt(mapZoomSlider?.value, 10) || 16;
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
@@ -295,6 +323,7 @@ function applySettingsToInputs(settings = {}) {
   if (atlasTitleInput && settings.title !== undefined) atlasTitleInput.value = settings.title || '';
   if (atlasSubtitleInput && settings.subtitle !== undefined) atlasSubtitleInput.value = settings.subtitle || '';
   if (labelFieldSelect && settings.labelField) labelFieldSelect.value = settings.labelField;
+  if (bearingFieldSelect && settings.bearingField) bearingFieldSelect.value = settings.bearingField;
   if (mapZoomSlider && settings.mapZoom) {
     mapZoomSlider.value = settings.mapZoom;
     zoomDisplay.textContent = settings.mapZoom;
@@ -333,7 +362,9 @@ function draftPropertiesForPhoto(p) {
     ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
     RelativeAltitude: p.relativeAltitude,
     FlightYawDegree: p.flightYawDegree,
-    GimbalYawDegree: p.gimbalYawDegree
+    GimbalYawDegree: p.gimbalYawDegree,
+    bearingDegree: p.bearingDegree,
+    bearingSource: p.bearingSource || ''
   };
 }
 
@@ -505,7 +536,9 @@ function applyDraftToPhotos(draft) {
     photo.date = props.date || photo.date || '';
     photo.localQgisPath = props.path || photo.localQgisPath || null;
     photo.relativeAltitude = asFloat(props.RelativeAltitude, photo.relativeAltitude);
-    photo.flightYawDegree = asFloat(props.FlightYawDegree, photo.flightYawDegree);
+    photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
+    photo.bearingSource = props.bearingSource || props.BearingSource || props.DirectionSource || photo.bearingSource || '';
+    photo.flightYawDegree = photo.bearingDegree;
     photo.gimbalYawDegree = asFloat(props.GimbalYawDegree, photo.gimbalYawDegree);
     if (match.feature.geometry?.type === 'Point') {
       const coords = match.feature.geometry.coordinates || [];
@@ -605,6 +638,63 @@ function extractGps(exif) {
   return { lat, lon };
 }
 
+function normalizeBearing(value) {
+  const n = asFloat(value);
+  if (n === null) return null;
+  return ((n % 360) + 360) % 360;
+}
+
+function parseUserCommentYaw(exif) {
+  const comment = exif.UserComment ?? exif.userComment ?? exif.UserComments;
+  if (!comment) return null;
+  const text = Array.isArray(comment) ? comment.join(' ') : String(comment);
+  const match = text.match(/\b(?:yaw|heading|bearing|direction)\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+  return match ? normalizeBearing(match[1]) : null;
+}
+
+function getExifValue(exif, field) {
+  if (!field) return undefined;
+  if (Object.prototype.hasOwnProperty.call(exif, field)) return exif[field];
+
+  const normalized = field.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const key = Object.keys(exif || {}).find(k =>
+    k.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+  );
+  return key ? exif[key] : undefined;
+}
+
+function resolveBearing(exif, selectedField = 'auto') {
+  if (selectedField && selectedField !== 'auto') {
+    if (selectedField === 'userCommentYaw') {
+      const yaw = parseUserCommentYaw(exif);
+      return { value: yaw, source: yaw === null ? '' : 'UserComment: Yaw' };
+    }
+    const value = normalizeBearing(getExifValue(exif, selectedField));
+    return { value, source: value === null ? '' : selectedField };
+  }
+
+  for (const field of AUTO_BEARING_FIELDS) {
+    const value = normalizeBearing(getExifValue(exif, field));
+    if (value !== null) return { value, source: field };
+  }
+
+  const commentYaw = parseUserCommentYaw(exif);
+  if (commentYaw !== null) return { value: commentYaw, source: 'UserComment: Yaw' };
+
+  return { value: null, source: '' };
+}
+
+function applyBearingFieldToPhotos() {
+  const selectedField = bearingFieldSelect?.value || 'auto';
+  atlasSettings.bearingField = selectedField;
+  photos.forEach(photo => {
+    const resolved = resolveBearing(photo.exif || {}, selectedField);
+    photo.bearingDegree = resolved.value;
+    photo.bearingSource = resolved.source;
+    photo.flightYawDegree = resolved.value;
+  });
+}
+
 function formatDate(d) {
   if (!d) return '';
   try {
@@ -637,10 +727,10 @@ extractBtn.addEventListener('click', async () => {
 
   const results = await Promise.all(pendingFiles.map(async (file, idx) => {
     try {
-      const exif = await exifr.parse(file, true) || {};
+      const exif = await exifr.parse(file, EXIF_PARSE_OPTIONS) || {};
       const { lat, lon } = extractGps(exif);
       const relAlt = asFloat(exif.RelativeAltitude ?? exif.GPSAltitude ?? exif.AbsoluteAltitude);
-      const yaw = asFloat(exif.FlightYawDegree ?? exif.GimbalYawDegree);
+      const bearing = resolveBearing(exif, atlasSettings.bearingField);
       const gimbalYaw = asFloat(exif.GimbalYawDegree);
       const path = qgisBase ? `${qgisBase}/${file.name}` : null;
       const relativePath = getRelativePath(file);
@@ -658,7 +748,9 @@ extractBtn.addEventListener('click', async () => {
         latitude: lat,
         longitude: lon,
         relativeAltitude: relAlt,
-        flightYawDegree: yaw,
+        flightYawDegree: bearing.value,
+        bearingDegree: bearing.value,
+        bearingSource: bearing.source,
         gimbalYawDegree: gimbalYaw,
         exif
       };
@@ -680,6 +772,8 @@ extractBtn.addEventListener('click', async () => {
         longitude: null,
         relativeAltitude: null,
         flightYawDegree: null,
+        bearingDegree: null,
+        bearingSource: '',
         gimbalYawDegree: null,
         exif: {}
       };
@@ -690,16 +784,16 @@ extractBtn.addEventListener('click', async () => {
 
   const total   = photos.length;
   const gps     = photos.filter(p => p.latitude !== null && p.longitude !== null).length;
-  const yaw     = photos.filter(p => p.flightYawDegree !== null).length;
+  const bearing = photos.filter(p => p.bearingDegree !== null).length;
   const noGps   = total - gps;
-  const noYaw   = yaw < total ? total - yaw : 0;
+  const noBearing = bearing < total ? total - bearing : 0;
 
-  extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} have GPS coordinates. ${yaw} have flight yaw.`;
+  extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} have GPS coordinates. ${bearing} have photo direction.`;
   extractStatus.classList.remove('hidden');
 
   const warnings = [];
   if (noGps > 0) warnings.push(`${noGps} photo${noGps !== 1 ? 's' : ''} have no GPS — they will be excluded from the atlas map.`);
-  if (noYaw > 0) warnings.push(`${noYaw} photo${noYaw !== 1 ? 's' : ''} have no yaw — their atlas markers will point north.`);
+  if (noBearing > 0) warnings.push(`${noBearing} photo${noBearing !== 1 ? 's' : ''} have no direction — their atlas markers will point north unless you choose another direction field.`);
   if (warnings.length) {
     extractWarnings.innerHTML = warnings.map(w => `<div>${w}</div>`).join('');
     extractWarnings.classList.remove('hidden');
@@ -709,6 +803,7 @@ extractBtn.addEventListener('click', async () => {
   extractBtn.disabled = false;
 
   populateLabelFieldDropdown();
+  populateBearingFieldDropdown();
   if (pendingDraft) applyDraftToPhotos(pendingDraft);
   currentProjectManifest = buildProjectManifest();
   currentProjectKey = buildProjectKey(currentProjectManifest);
@@ -750,7 +845,7 @@ function renderReviewTable() {
       <td class="col-coord">${fmtCoord(photo.latitude)}</td>
       <td class="col-coord">${fmtCoord(photo.longitude)}</td>
       <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
-      <td class="col-yaw">${fmtNum(photo.flightYawDegree)}</td>
+      <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">${fmtNum(photo.bearingDegree)}</td>
       <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment…">${esc(photo.comment)}</textarea></td>
     `;
 
@@ -836,6 +931,68 @@ function populateLabelFieldDropdown() {
     opt.textContent = key;
     if (key === 'photoNumber') opt.selected = true;
     labelFieldSelect.appendChild(opt);
+  });
+}
+
+function isNumericExifField(key) {
+  return photos.some(p => normalizeBearing(getExifValue(p.exif || {}, key)) !== null);
+}
+
+function populateBearingFieldDropdown() {
+  if (!bearingFieldSelect) return;
+
+  const current = atlasSettings.bearingField || bearingFieldSelect.value || 'auto';
+  const exifKeys = new Set();
+  photos.forEach(p => Object.keys(p.exif || {}).forEach(k => exifKeys.add(k)));
+
+  const known = AUTO_BEARING_FIELDS.filter(k => exifKeys.has(k) && isNumericExifField(k));
+  const numeric = [...exifKeys]
+    .filter(k => !known.includes(k) && isNumericExifField(k))
+    .sort((a, b) => a.localeCompare(b));
+
+  bearingFieldSelect.innerHTML = '';
+  SPECIAL_BEARING_FIELDS.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.value;
+    opt.textContent = item.label;
+    bearingFieldSelect.appendChild(opt);
+  });
+
+  if (known.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Common direction fields';
+    known.forEach(key => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = key;
+      group.appendChild(opt);
+    });
+    bearingFieldSelect.appendChild(group);
+  }
+
+  if (numeric.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Other numeric EXIF fields';
+    numeric.forEach(key => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = key;
+      group.appendChild(opt);
+    });
+    bearingFieldSelect.appendChild(group);
+  }
+
+  bearingFieldSelect.value = [...bearingFieldSelect.options].some(o => o.value === current)
+    ? current
+    : 'auto';
+  atlasSettings.bearingField = bearingFieldSelect.value;
+  applyBearingFieldToPhotos();
+}
+
+if (bearingFieldSelect) {
+  bearingFieldSelect.addEventListener('change', () => {
+    applyBearingFieldToPhotos();
+    renderReviewTable();
   });
 }
 
@@ -974,6 +1131,7 @@ gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.title    = atlasTitleInput.value.trim();
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
+  atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
@@ -1007,6 +1165,7 @@ generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.title    = atlasTitleInput.value.trim();
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
+  atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
@@ -1154,7 +1313,7 @@ downloadCsvBtn.addEventListener('click', () => {
   const included = photos.filter(p => p.include);
   if (included.length === 0) { alert('No photos selected for export.'); return; }
 
-  const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', 'latitude', 'longitude', 'relativeAltitude', 'flightYawDegree'];
+  const headers = ['photoNumber', 'fileName', 'date', 'comment', 'path', 'latitude', 'longitude', 'relativeAltitude', 'bearingDegree', 'bearingSource', 'flightYawDegree'];
   const rows = [headers.join(',')];
 
   included.forEach(p => {
@@ -1192,11 +1351,14 @@ downloadGeojsonBtn.addEventListener('click', () => {
       include:          p.include !== false,
       ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
       RelativeAltitude: p.relativeAltitude,
+      bearingDegree:    p.bearingDegree,
+      bearingSource:    p.bearingSource || '',
       FlightYawDegree:  p.flightYawDegree,
       GimbalYawDegree:  p.gimbalYawDegree
     };
 
     const exifKeys = ['Make', 'Model', 'GPSAltitude', 'AbsoluteAltitude',
+                      'GPSImgDirection', 'GPSImgDirectionRef', 'GPSDestBearing',
                       'GimbalPitchDegree', 'GimbalRollDegree', 'FlightPitchDegree',
                       'FlightRollDegree', 'CalibratedFocalLength', 'CalibratedOpticalCenterX',
                       'CalibratedOpticalCenterY', 'DateTimeOriginal', 'ExifImageWidth',
