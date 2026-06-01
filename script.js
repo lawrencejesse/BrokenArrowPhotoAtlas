@@ -50,6 +50,7 @@ const atlasSettings = {
   subtitle: 'Aerial Photo Summary',
   labelField: 'photoNumber',
   bearingField: 'auto',
+  showAltitude: true,
   mapZoom: 16,
   layout: 'landscape',
   boundaryStyle: { color: '#ffff00', weight: 2, fillOpacity: 0.05 },
@@ -261,6 +262,7 @@ const atlasTitleInput   = document.getElementById('atlas-title');
 const atlasSubtitleInput= document.getElementById('atlas-subtitle');
 const labelFieldSelect  = document.getElementById('label-field');
 const bearingFieldSelect= document.getElementById('bearing-field');
+const showAltitudeInput = document.getElementById('show-altitude');
 const mapZoomSlider     = document.getElementById('map-zoom');
 const zoomDisplay       = document.getElementById('zoom-display');
 const boundaryFileInput = document.getElementById('boundary-file');
@@ -313,6 +315,7 @@ function readSettingsFromInputs() {
   atlasSettings.subtitle = atlasSubtitleInput?.value.trim() || '';
   atlasSettings.labelField = labelFieldSelect?.value || 'photoNumber';
   atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
+  atlasSettings.showAltitude = showAltitudeInput ? showAltitudeInput.checked : true;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider?.value, 10) || 16;
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
@@ -324,6 +327,7 @@ function applySettingsToInputs(settings = {}) {
   if (atlasSubtitleInput && settings.subtitle !== undefined) atlasSubtitleInput.value = settings.subtitle || '';
   if (labelFieldSelect && settings.labelField) labelFieldSelect.value = settings.labelField;
   if (bearingFieldSelect && settings.bearingField) bearingFieldSelect.value = settings.bearingField;
+  if (showAltitudeInput && settings.showAltitude !== undefined) showAltitudeInput.checked = settings.showAltitude !== false;
   if (mapZoomSlider && settings.mapZoom) {
     mapZoomSlider.value = settings.mapZoom;
     zoomDisplay.textContent = settings.mapZoom;
@@ -1324,6 +1328,7 @@ gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
+  atlasSettings.showAltitude = showAltitudeInput ? showAltitudeInput.checked : true;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
@@ -1358,6 +1363,7 @@ generateAtlasBtn.addEventListener('click', async () => {
   atlasSettings.subtitle = atlasSubtitleInput.value.trim();
   atlasSettings.labelField = labelFieldSelect.value;
   atlasSettings.bearingField = bearingFieldSelect?.value || 'auto';
+  atlasSettings.showAltitude = showAltitudeInput ? showAltitudeInput.checked : true;
   atlasSettings.mapZoom  = parseInt(mapZoomSlider.value, 10);
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();

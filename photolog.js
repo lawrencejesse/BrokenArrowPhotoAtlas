@@ -348,7 +348,7 @@ async function buildPhotoLog(included, settings, watermark) {
 
   const photoData = included.map((p, i) => {
     const labelVal = p[settings.labelField] ?? p.photoNumber;
-    const altStr   = p.relativeAltitude != null
+    const altStr   = settings.showAltitude !== false && p.relativeAltitude != null
       ? `${parseFloat(p.relativeAltitude).toFixed(0)} m`
       : '';
     const { w, h } = dims[i];
