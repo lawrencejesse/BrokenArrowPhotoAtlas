@@ -526,14 +526,14 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 10px 12px;
+  padding: 10px 10px;
   text-align: left;
   border-bottom: 1px solid var(--slate-border);
   white-space: nowrap;
 }
 
 #review-table td {
-  padding: 9px 12px;
+  padding: 9px 10px;
   border-bottom: 1px solid rgba(45,53,72,0.6);
   color: var(--body-text);
   vertical-align: middle;
@@ -566,12 +566,20 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   background: var(--slate-dark);
 }
 .col-num     { width: 70px; }
-.col-name    { min-width: 160px; max-width: 240px; }
+.col-name    { min-width: 130px; max-width: 210px; }
 .col-date    { width: 110px; }
-.col-coord   { width: 100px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.col-coord   { width: 78px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .col-alt     { width: 90px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .col-yaw     { width: 120px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .col-comment { min-width: 180px; }
+
+.file-name-cell {
+  display: block;
+  max-width: 210px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
 
 .direction-cell {
   display: flex;
@@ -590,6 +598,26 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   padding: 3px 7px;
   font-size: 11px;
   font-family: 'Inter', sans-serif;
+}
+
+@media (max-width: 760px) {
+  #review-table {
+    min-width: 860px;
+    font-size: 12px;
+  }
+  #review-table th,
+  #review-table td {
+    padding: 7px 8px;
+  }
+  .col-thumb { width: 56px; }
+  .row-thumb {
+    width: 50px;
+    height: 36px;
+  }
+  .col-name { min-width: 120px; max-width: 170px; }
+  .file-name-cell { max-width: 170px; }
+  .col-comment { min-width: 150px; }
+  .direction-cell { gap: 6px; }
 }
 
 .drag-handle {

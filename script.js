@@ -847,7 +847,8 @@ function renderReviewTable() {
     if (!photo.include) tr.classList.add('excluded');
     tr.draggable = true;
 
-    const fmtCoord = v => v !== null ? v.toFixed(6) : '—';
+    const fmtCoord = v => v !== null ? v.toFixed(4) : '-';
+    const fmtCoordFull = v => v !== null ? v.toFixed(7) : '-';
     const fmtNum   = v => v !== null ? v.toFixed(1) : '—';
 
     const handleSvg = `<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="2.5" r="1.2"/><circle cx="10" cy="2.5" r="1.2"/><circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="4" cy="11.5" r="1.2"/><circle cx="10" cy="11.5" r="1.2"/></svg>`;
@@ -857,11 +858,6 @@ function renderReviewTable() {
       <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
       <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="" loading="lazy" draggable="false"></td>
       <td class="col-num">${photo.photoNumber}</td>
-      <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
-      <td class="col-date">${esc(photo.date)}</td>
-      <td class="col-coord">${fmtCoord(photo.latitude)}</td>
-      <td class="col-coord">${fmtCoord(photo.longitude)}</td>
-      <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
       <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">
         <div class="direction-cell">
           <span>${fmtNum(photo.bearingDegree)}</span>
@@ -869,6 +865,11 @@ function renderReviewTable() {
           <button type="button" class="btn-ghost direction-set-btn" data-idx="${i}">Set</button>
         </div>
       </td>
+      <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
+      <td class="col-date">${esc(photo.date)}</td>
+      <td class="col-coord" title="${fmtCoordFull(photo.latitude)}">${fmtCoord(photo.latitude)}</td>
+      <td class="col-coord" title="${fmtCoordFull(photo.longitude)}">${fmtCoord(photo.longitude)}</td>
+      <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
       <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment…">${esc(photo.comment)}</textarea></td>
     `;
 
