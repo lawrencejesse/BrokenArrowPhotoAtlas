@@ -120,6 +120,11 @@ body {
   gap: 20px;
 }
 
+.workflow-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* --- Step cards ------------------------------------------- */
 .step-card {
   background: var(--slate-mid);

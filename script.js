@@ -231,7 +231,8 @@ function updateExportUI() {
   }
 
   try {
-      const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
+    if (!currentProjectKey) return;
+    const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
     if (!rememberedSession) return;
     verifyCheckoutSession(rememberedSession.sessionId)
       .then(isPaid => { if (isPaid) unlockPaidExport(rememberedSession.sessionId, { autoDownload: false, projectKey: rememberedSession.projectKey, projectManifest: rememberedSession.projectManifest }); })
@@ -244,6 +245,7 @@ function updateExportUI() {
 const unlockExportBtn     = document.getElementById('unlock-export-btn');
 const exportUnlockedBadge = document.getElementById('export-unlocked-badge');
 const exportHint          = document.getElementById('export-hint');
+const startNewBtn         = document.getElementById('start-new-btn');
 
 const photoFilesInput   = document.getElementById('photo-files');
 const photoFolderInput  = document.getElementById('photo-folder');
@@ -255,9 +257,11 @@ const draftStatus       = document.getElementById('draft-status');
 const extractStatus     = document.getElementById('extract-status');
 const extractWarnings   = document.getElementById('extract-warnings');
 
+const step1El           = document.getElementById('step-1');
 const step2El           = document.getElementById('step-2');
 const step3El           = document.getElementById('step-3');
 const step4El           = document.getElementById('step-4');
+const step5El           = document.getElementById('step-5');
 
 const reviewTbody       = document.getElementById('review-tbody');
 const includedCountEl   = document.getElementById('included-count');
@@ -288,6 +292,94 @@ const downloadDraftBtn  = document.getElementById('download-draft');
 /* ---- File selection -------------------------------------- */
 
 let pendingFiles = [];
+
+function resetCurrentWorkflow() {
+  photos.forEach(photo => {
+    if (photo.objectUrl) URL.revokeObjectURL(photo.objectUrl);
+  });
+  photos = [];
+  pendingFiles = [];
+  pendingDraft = null;
+  pendingDraftName = '';
+  boundaryGeoJson = null;
+  currentProjectKey = '';
+  currentProjectManifest = [];
+  paidProjectKey = '';
+  window._lastAtlasArgs = null;
+  window._lastPhotoLogArgs = null;
+  window.pendingCleanExportDownload = false;
+
+  [photoFilesInput, photoFolderInput, draftFileInput, boundaryFileInput].forEach(input => {
+    if (input) input.value = '';
+  });
+
+  setPaid(false, '');
+  applySettingsToInputs({
+    title: '',
+    subtitle: 'Aerial Photo Summary',
+    labelField: 'photoNumber',
+    bearingField: 'auto',
+    showAltitude: true,
+    mapZoom: 16,
+    layout: 'landscape',
+    mode: 'atlas',
+    companyName: '',
+    projectName: '',
+    logoDataUrl: '',
+    accentColor: '#BF9555',
+    showFooter: false
+  });
+
+  if (reviewTbody) reviewTbody.innerHTML = '';
+  if (includedCountEl) includedCountEl.textContent = '0 of 0 photos included';
+  if (selectionSummary) selectionSummary.classList.add('hidden');
+  if (draftStatus) draftStatus.classList.add('hidden');
+  if (extractStatus) extractStatus.classList.add('hidden');
+  if (extractWarnings) {
+    extractWarnings.innerHTML = '';
+    extractWarnings.classList.add('hidden');
+  }
+  if (boundaryStatus) {
+    boundaryStatus.textContent = '';
+    boundaryStatus.classList.add('hidden');
+  }
+  const logoFileInput = document.getElementById('logo-file');
+  const logoPreviewEl = document.getElementById('logo-preview');
+  const clearLogoBtnEl = document.getElementById('clear-logo-btn');
+  if (logoFileInput) logoFileInput.value = '';
+  if (logoPreviewEl) {
+    logoPreviewEl.src = '';
+    logoPreviewEl.classList.add('hidden');
+  }
+  if (clearLogoBtnEl) clearLogoBtnEl.classList.add('hidden');
+  if (generatePreviewInfo) generatePreviewInfo.textContent = '';
+  if (generateError) generateError.classList.add('hidden');
+  if (downloadCsvBtn) downloadCsvBtn.disabled = true;
+  if (downloadGeojsonBtn) downloadGeojsonBtn.disabled = true;
+  if (downloadDraftBtn) downloadDraftBtn.disabled = true;
+  const htmlDownloadBtn = document.getElementById('download-atlas-html');
+  if (htmlDownloadBtn) {
+    htmlDownloadBtn.disabled = true;
+    delete htmlDownloadBtn.dataset.filename;
+  }
+  const printInstructions = document.getElementById('print-instructions');
+  if (printInstructions) printInstructions.classList.add('hidden');
+  const atlasLoadingNote = document.getElementById('atlas-loading-note');
+  if (atlasLoadingNote) atlasLoadingNote.classList.add('hidden');
+
+  [step2El, step3El, step4El, step5El].forEach(step => {
+    if (step) step.classList.add('hidden');
+  });
+
+  extractBtn.textContent = 'Extract EXIF';
+  extractBtn.disabled = true;
+  updateExportUI();
+  step1El?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+if (startNewBtn) {
+  startNewBtn.addEventListener('click', resetCurrentWorkflow);
+}
 
 function onFilesChosen(fileList) {
   const images = Array.from(fileList).filter(f => f.type.startsWith('image/'));
