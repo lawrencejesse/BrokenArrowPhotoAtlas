@@ -143,7 +143,7 @@ function showPaidRecoveryMessage(downloaded) {
   } else if (window._lastAtlasArgs || window._lastPhotoLogArgs) {
     hint.textContent = 'Payment verified - click Download Printable HTML to save your clean file.';
   } else {
-    hint.textContent = 'Payment verified. If this page was reloaded, select the photos and resume draft again, then regenerate the clean export.';
+    hint.textContent = 'Payment verified. If this page was reloaded, select the matching photo folder, extract EXIF, regenerate, and the clean export will unlock again.';
   }
 }
 
@@ -155,7 +155,11 @@ function unlockPaidExport(sessionId, options = {}) {
     showPaidRecoveryMessage(false);
     return;
   }
-  if (!currentProjectKey) return;
+  if (!currentProjectKey) {
+    loadStoredRecoveryDraft(options.recoveryMessage || 'Payment verified. Select the matching photo folder and extract EXIF to rebuild your clean export.');
+    showPaidRecoveryMessage(false);
+    return;
+  }
   setPaid(true, projectKey);
   let downloaded = false;
   if (options.autoDownload) {
@@ -215,8 +219,12 @@ function updateExportUI() {
         const pending = getStoredCheckoutSession(PENDING_SESSION_KEY);
         const projectKey = pending && pending.sessionId === sessionId ? pending.projectKey : currentProjectKey;
         const projectManifest = pending && pending.sessionId === sessionId ? pending.projectManifest : currentProjectManifest;
-        unlockPaidExport(sessionId, { autoDownload: true, projectKey, projectManifest });
-        if (window.opener && !window.opener.closed) window.close();
+        unlockPaidExport(sessionId, {
+          autoDownload: true,
+          projectKey,
+          projectManifest,
+          recoveryMessage: 'Payment verified. If your original tab is still open, return to it. If it refreshed, select the matching photo folder here and extract EXIF to rebuild your clean export.'
+        });
       })
       .catch(err => console.warn('Stripe return verification failed:', err));
     return;
@@ -425,7 +433,7 @@ function simpleHash(str) {
 }
 
 function buildProjectManifest() {
-  return photos.map(p => [
+  return photos.filter(p => p.include !== false).map(p => [
     normalizeRelativePath(p.relativePath || p.fileName),
     p.fileSize || '',
     p.date || ''
@@ -483,6 +491,34 @@ function saveRecoveryDraftToStorage() {
     console.warn('Could not save recovery draft:', err);
     return false;
   }
+}
+
+function getRecoveryDraftFromStorage() {
+  try {
+    const raw = localStorage.getItem(RECOVERY_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) return null;
+    return parsed;
+  } catch (err) {
+    console.warn('Could not read recovery draft:', err);
+    return null;
+  }
+}
+
+function loadStoredRecoveryDraft(message) {
+  if (pendingDraft || photos.length) return false;
+  const draft = getRecoveryDraftFromStorage();
+  if (!draft) return false;
+  pendingDraft = draft;
+  pendingDraftName = 'saved recovery draft';
+  applySettingsToInputs(draft.metadata?.settings || {});
+  if (draftStatus) {
+    draftStatus.textContent = message || 'Found a saved recovery draft. Select the matching photo folder and extract EXIF to continue.';
+    draftStatus.className = 'draft-status warning';
+    draftStatus.classList.remove('hidden');
+  }
+  return true;
 }
 
 function downloadReviewDraft() {
@@ -1459,6 +1495,8 @@ if (unlockExportBtn) {
        it to the Stripe URL once we have it. */
     const stripeTab = window.open('', '_blank');
     if (photos.length) {
+      currentProjectManifest = buildProjectManifest();
+      currentProjectKey = buildProjectKey(currentProjectManifest);
       const draft = buildReviewDraft();
       saveRecoveryDraftToStorage();
       triggerDownload(JSON.stringify(draft, null, 2), getDraftFilename(), 'application/geo+json');
