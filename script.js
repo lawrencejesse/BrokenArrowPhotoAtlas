@@ -1288,6 +1288,8 @@ document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
     const isAtlas = getOutputMode() === 'atlas';
     const mapSettings = document.getElementById('map-atlas-only-settings');
     if (mapSettings) mapSettings.classList.toggle('hidden', !isAtlas);
+    const atlasLoadingNote = document.getElementById('atlas-loading-note');
+    if (atlasLoadingNote) atlasLoadingNote.classList.toggle('hidden', !isAtlas);
     const btnLabel = document.getElementById('generate-btn-label');
     if (btnLabel) btnLabel.textContent = isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log';
     const step4Desc = document.getElementById('step-4-desc');
@@ -1343,6 +1345,9 @@ gotoGenerateBtn.addEventListener('click', () => {
   if (step4Desc) step4Desc.textContent = isAtlas
     ? 'Build your printable map atlas. Each included photo gets its own page with a satellite map, caption, and location marker.'
     : 'Build your printable photo log. Photos are paired two per page with captions — no GPS required.';
+
+  const atlasLoadingNote = document.getElementById('atlas-loading-note');
+  if (atlasLoadingNote) atlasLoadingNote.classList.toggle('hidden', !isAtlas);
 
   const btnLabel = document.getElementById('generate-btn-label');
   if (btnLabel) btnLabel.textContent = isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log';
@@ -1436,7 +1441,7 @@ if (unlockExportBtn) {
 
     const resetBtn = () => {
       unlockExportBtn.disabled = false;
-      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Unlock Clean Export \u2014 $12 CAD';
+      unlockExportBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Unlock Clean Export \u2014 $15 CAD/site';
     };
 
     try {

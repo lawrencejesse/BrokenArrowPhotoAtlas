@@ -376,7 +376,7 @@
 
                     <div class="privacy-notice">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        <span>Satellite basemap tiles are requested from Esri's servers around your photo locations. For sensitive client work, be aware that photo coordinates are sent to the tile provider to load the imagery.</span>
+                        <span>Satellite basemap tiles are requested from Esri's servers around your photo locations. For sensitive client work, be aware that photo coordinates are sent to the tile provider to load the imagery. Atlases with many photos may take a couple of minutes to finish loading the satellite basemaps.</span>
                     </div>
                 </div>
 
@@ -392,6 +392,7 @@
                 <p class="step-desc" id="step-4-desc">Build your printable document.</p>
 
                 <div id="generate-preview-info" class="generate-preview-info"></div>
+                <p class="field-hint hidden" id="atlas-loading-note"><strong style="color:var(--white)">Large atlas?</strong> Satellite basemaps can take a couple of minutes to load when many photo pages open at once.</p>
 
                 <button class="btn btn-primary btn-generate" id="generate-atlas-btn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
@@ -404,12 +405,13 @@
             <section class="step-card hidden" id="step-5">
                 <div class="step-label">Step 5</div>
                 <h2 class="step-heading">Export</h2>
-                <p class="step-desc">Your document is ready. The preview tab includes a watermark — unlock a clean, print-ready download once per session for $12 CAD.</p>
+                <p class="step-desc">Your document is ready. The preview tab includes a watermark - unlock a clean, print-ready download with early access pricing.</p>
 
                 <div class="export-unlock-panel">
+                    <div class="pricing-badge">Early Access Pricing</div>
                     <button class="btn-unlock" id="unlock-export-btn" disabled>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Unlock Clean Export — $12 CAD
+                        Unlock Clean Export - $15 CAD/site
                     </button>
                     <div class="export-unlocked-badge hidden" id="export-unlocked-badge">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -471,7 +473,7 @@
                     <h3 id="direction-modal-title">Set Photo Direction</h3>
                     <p id="direction-modal-subtitle">Click the map where the camera was facing.</p>
                 </div>
-                <button class="btn-ghost direction-close-btn" id="direction-close-btn" aria-label="Close direction editor">×</button>
+                <button class="btn-ghost direction-close-btn" id="direction-close-btn" aria-label="Close direction editor">�-</button>
             </div>
             <div class="direction-modal-body">
                 <div class="direction-photo-panel">

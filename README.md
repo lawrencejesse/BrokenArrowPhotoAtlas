@@ -81,7 +81,9 @@ STRIPE_PRICE_ID
 ADMIN_TOKEN
 ```
 
-If Stripe variables are missing, checkout endpoints return a configuration error and the browser app remains usable for watermarked previews.
+`STRIPE_PRICE_ID` is optional because the app has a built-in early-access fallback price for the current $15 CAD/site unlock. Set `STRIPE_PRICE_ID` in Replit Secrets when you need to override that default without changing code.
+
+If `STRIPE_SECRET_KEY` is missing, checkout endpoints return a configuration error and the browser app remains usable for watermarked previews.
 
 ## Project Structure
 

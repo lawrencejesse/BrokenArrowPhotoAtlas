@@ -4,6 +4,7 @@ const path    = require('path');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
+const DEFAULT_STRIPE_PRICE_ID = 'price_1TdahYKFeei8JqvyZd29hF3r';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -20,11 +21,11 @@ function getBaseUrl(req) {
 
 app.post('/api/create-checkout-session', async (req, res) => {
   const secretKey = process.env.STRIPE_SECRET_KEY;
-  const priceId   = process.env.STRIPE_PRICE_ID;
+  const priceId   = process.env.STRIPE_PRICE_ID || DEFAULT_STRIPE_PRICE_ID;
 
-  if (!secretKey || !priceId) {
+  if (!secretKey) {
     return res.status(503).json({
-      error: 'Stripe is not configured. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID to your Replit Secrets.'
+      error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to your Replit Secrets.'
     });
   }
 
