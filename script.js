@@ -444,6 +444,20 @@ function buildProjectKey(manifest = currentProjectManifest) {
   return simpleHash(manifest.join('\n'));
 }
 
+function projectManifestVariants(item) {
+  const [pathPart, ...restParts] = String(item || '').split('|');
+  const rest = restParts.join('|');
+  const normalized = normalizeRelativePath(pathPart);
+  const parts = normalized.split('/').filter(Boolean);
+  const basename = parts.length ? parts[parts.length - 1] : normalized;
+  const tail = parts.length > 1 ? parts.slice(1).join('/') : '';
+  return [
+    `${normalized}|${rest}`,
+    tail ? `${tail}|${rest}` : '',
+    basename ? `${basename}|${rest}` : ''
+  ].filter(Boolean);
+}
+
 function storedProjectMatchesCurrent(stored) {
   if (!stored || !currentProjectKey) return false;
   if (stored.projectKey === currentProjectKey) return true;
@@ -451,8 +465,10 @@ function storedProjectMatchesCurrent(stored) {
   const storedManifest = Array.isArray(stored.projectManifest) ? stored.projectManifest : [];
   if (!storedManifest.length || !currentProjectManifest.length) return false;
 
-  const current = new Set(currentProjectManifest);
-  const overlap = storedManifest.filter(item => current.has(item)).length;
+  const current = new Set(currentProjectManifest.flatMap(projectManifestVariants));
+  const overlap = storedManifest.filter(item =>
+    projectManifestVariants(item).some(variant => current.has(variant))
+  ).length;
   const storedRatio = overlap / storedManifest.length;
   const currentRatio = overlap / currentProjectManifest.length;
   return storedRatio >= PROJECT_MATCH_THRESHOLD && currentRatio >= PROJECT_MATCH_THRESHOLD;
