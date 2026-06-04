@@ -401,11 +401,13 @@ function buildReviewDraft() {
 }
 
 function getDraftFilename() {
-  const base = (atlasSettings.title || 'photo_atlas_review_draft')
+  const datePart = new Date().toLocaleDateString('en-CA');
+  const surfaceLocation = atlasTitleInput?.value.trim() || atlasSettings.title || 'photo_atlas';
+  const base = surfaceLocation
     .replace(/[^a-zA-Z0-9_\- ]/g, '')
     .trim()
-    .replace(/\s+/g, '_') || 'photo_atlas_review_draft';
-  return `${base}_review_draft.geojson`;
+    .replace(/\s+/g, '_') || 'photo_atlas';
+  return `${base}_${datePart}_review_draft.geojson`;
 }
 
 function simpleHash(str) {
