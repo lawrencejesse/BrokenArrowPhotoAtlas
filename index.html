@@ -367,14 +367,14 @@
                     </div>
 
                     <div class="field-group">
-                        <label class="field-label" for="boundary-file">Optional project boundary <span class="field-optional">(GeoJSON)</span></label>
+                        <label class="field-label" for="boundary-file">Optional project boundary <span class="field-optional">(GeoJSON or KML)</span></label>
                         <label class="btn btn-ghost-upload" for="boundary-file">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             Upload boundary file
                         </label>
-                        <input type="file" id="boundary-file" accept=".geojson,.json" style="display:none">
+                        <input type="file" id="boundary-file" accept=".geojson,.json,.kml" style="display:none">
                         <div id="boundary-status" class="boundary-status hidden"></div>
-                        <p class="field-hint">Upload a lease boundary, pasture, ROW, or project area polygon. It will appear on every atlas map page.</p>
+                        <p class="field-hint">Upload a lease boundary, pasture, ROW, or project area polygon as GeoJSON or KML. It will appear on every atlas map page.</p>
                     </div>
 
                     <div class="privacy-notice">

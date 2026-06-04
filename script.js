@@ -1369,24 +1369,110 @@ mapZoomSlider.addEventListener('input', () => {
   atlasSettings.mapZoom = parseInt(mapZoomSlider.value, 10);
 });
 
+function isSupportedBoundaryGeoJson(geojson) {
+  return geojson && ['FeatureCollection', 'Feature', 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString', 'Point', 'MultiPoint', 'GeometryCollection'].includes(geojson.type);
+}
+
+function kmlCoordinatesToLngLat(text) {
+  return String(text || '').trim().split(/\s+/)
+    .map(pair => {
+      const [lon, lat] = pair.split(',').map(Number);
+      return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null;
+    })
+    .filter(Boolean);
+}
+
+function kmlElementName(el) {
+  return (el.localName || el.nodeName || '').replace(/^.*:/, '');
+}
+
+function childElementsByName(el, name) {
+  return Array.from(el.children || []).filter(child => kmlElementName(child) === name);
+}
+
+function firstChildByName(el, name) {
+  return childElementsByName(el, name)[0] || null;
+}
+
+function hasKmlGeometryAncestor(el, stopEl) {
+  let parent = el.parentElement;
+  while (parent && parent !== stopEl) {
+    if (['Point', 'LineString', 'Polygon', 'MultiGeometry'].includes(kmlElementName(parent))) return true;
+    parent = parent.parentElement;
+  }
+  return false;
+}
+
+function parseKmlGeometry(el) {
+  const name = kmlElementName(el);
+  if (name === 'Point') {
+    const coords = kmlCoordinatesToLngLat(firstChildByName(el, 'coordinates')?.textContent);
+    return coords.length ? { type: 'Point', coordinates: coords[0] } : null;
+  }
+  if (name === 'LineString') {
+    const coords = kmlCoordinatesToLngLat(firstChildByName(el, 'coordinates')?.textContent);
+    return coords.length >= 2 ? { type: 'LineString', coordinates: coords } : null;
+  }
+  if (name === 'Polygon') {
+    const rings = [];
+    childElementsByName(el, 'outerBoundaryIs').forEach(boundary => {
+      const coords = kmlCoordinatesToLngLat(firstChildByName(firstChildByName(boundary, 'LinearRing') || boundary, 'coordinates')?.textContent);
+      if (coords.length >= 4) rings.push(coords);
+    });
+    childElementsByName(el, 'innerBoundaryIs').forEach(boundary => {
+      const coords = kmlCoordinatesToLngLat(firstChildByName(firstChildByName(boundary, 'LinearRing') || boundary, 'coordinates')?.textContent);
+      if (coords.length >= 4) rings.push(coords);
+    });
+    return rings.length ? { type: 'Polygon', coordinates: rings } : null;
+  }
+  if (name === 'MultiGeometry') {
+    const geometries = Array.from(el.children || []).map(parseKmlGeometry).filter(Boolean);
+    return geometries.length ? { type: 'GeometryCollection', geometries } : null;
+  }
+  return null;
+}
+
+function parseKmlBoundary(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const parserError = doc.querySelector('parsererror');
+  if (parserError) throw new Error('KML XML could not be parsed.');
+  const placemarks = Array.from(doc.getElementsByTagName('*')).filter(el => kmlElementName(el) === 'Placemark');
+  const features = [];
+  placemarks.forEach(placemark => {
+    const name = firstChildByName(placemark, 'name')?.textContent?.trim() || '';
+    Array.from(placemark.getElementsByTagName('*')).forEach(child => {
+      if (!['Point', 'LineString', 'Polygon', 'MultiGeometry'].includes(kmlElementName(child))) return;
+      if (hasKmlGeometryAncestor(child, placemark)) return;
+      const geometry = parseKmlGeometry(child);
+      if (geometry) features.push({ type: 'Feature', properties: name ? { name } : {}, geometry });
+    });
+  });
+  if (!features.length) throw new Error('No supported KML geometry found.');
+  return { type: 'FeatureCollection', features };
+}
+
+function parseBoundaryFileText(text, fileName) {
+  const lowerName = String(fileName || '').toLowerCase();
+  if (lowerName.endsWith('.kml')) return parseKmlBoundary(text);
+  const parsed = JSON.parse(text);
+  if (!isSupportedBoundaryGeoJson(parsed)) throw new Error(`Unexpected GeoJSON type: ${parsed?.type}`);
+  return parsed;
+}
+
 boundaryFileInput.addEventListener('change', () => {
   const file = boundaryFileInput.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const parsed = JSON.parse(e.target.result);
-      const type = parsed.type;
-      if (!['FeatureCollection', 'Feature', 'Polygon', 'MultiPolygon', 'LineString', 'MultiLineString', 'GeometryCollection'].includes(type)) {
-        throw new Error(`Unexpected GeoJSON type: ${type}`);
-      }
+      const parsed = parseBoundaryFileText(e.target.result, file.name);
       boundaryGeoJson = parsed;
       boundaryStatus.textContent = `Boundary loaded: ${file.name}`;
       boundaryStatus.className = 'boundary-status ok';
       boundaryStatus.classList.remove('hidden');
     } catch (err) {
       boundaryGeoJson = null;
-      boundaryStatus.textContent = `Could not read boundary file. Check that it is valid GeoJSON. (${err.message})`;
+      boundaryStatus.textContent = `Could not read boundary file. Check that it is valid GeoJSON or KML. (${err.message})`;
       boundaryStatus.className = 'boundary-status error';
       boundaryStatus.classList.remove('hidden');
     }
