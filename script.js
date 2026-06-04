@@ -1660,7 +1660,11 @@ generateAtlasBtn.addEventListener('click', async () => {
     }
   } catch (err) {
     console.error('Generation error', err);
-    generateError.textContent = `Generation failed: ${err.message}`;
+    const message = String(err?.message || err || '');
+    const largePhotoHint = /invalid string length|out of memory|allocation/i.test(message)
+      ? 'Generation failed because the selected photos are too large for the browser to pack into one printable HTML file. Try fewer photos, resize/compress the photos first, or split the atlas into smaller batches.'
+      : `Generation failed: ${message}`;
+    generateError.textContent = largePhotoHint;
     generateError.classList.remove('hidden');
     generateAtlasBtn.disabled = false;
     generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log'}</span>`;

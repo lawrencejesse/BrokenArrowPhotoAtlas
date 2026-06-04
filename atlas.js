@@ -8,20 +8,59 @@
 
 /* ---- Helper: blob URL → Base64 data URL ------------------ */
 
+const OUTPUT_IMAGE_MAX_DIMENSION = 2200;
+const OUTPUT_IMAGE_QUALITY = 0.84;
+
+function imageBlobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 async function toDataUrl(blobUrl) {
   try {
-    const res  = await fetch(blobUrl);
+    const res = await fetch(blobUrl);
     const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload  = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    const tempUrl = URL.createObjectURL(blob);
+    try {
+      const img = await loadImage(tempUrl);
+      const maxSide = Math.max(img.naturalWidth || 1, img.naturalHeight || 1);
+      const scale = Math.min(1, OUTPUT_IMAGE_MAX_DIMENSION / maxSide);
+      if (scale >= 1) return await imageBlobToDataUrl(blob);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', OUTPUT_IMAGE_QUALITY);
+    } finally {
+      URL.revokeObjectURL(tempUrl);
+    }
   } catch (e) {
     console.warn('Could not encode photo as data URL, falling back to blob URL:', blobUrl, e);
     return blobUrl;
   }
+}
+
+async function photosToDataUrls(included) {
+  const dataUrls = [];
+  for (const photo of included) {
+    dataUrls.push(await toDataUrl(photo.objectUrl));
+  }
+  return dataUrls;
 }
 
 /* ---- Public entry point ---------------------------------- */
@@ -52,7 +91,7 @@ async function buildAtlas(included, settings, boundary, watermark) {
     console.warn('Could not load SVG assets, using fallback markers.', e);
   }
 
-  const dataUrls = await Promise.all(included.map(p => toDataUrl(p.objectUrl)));
+  const dataUrls = await photosToDataUrls(included);
 
   const photoData = included.map((p, i) => {
     const labelVal = p[settings.labelField] ?? p.photoNumber;

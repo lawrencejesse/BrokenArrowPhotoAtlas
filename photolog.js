@@ -343,7 +343,7 @@ function measureImage(src) {
 
 async function buildPhotoLog(included, settings, watermark) {
   if (watermark === undefined) watermark = true;
-  const dataUrls = await Promise.all(included.map(p => toDataUrl(p.objectUrl)));
+  const dataUrls = await photosToDataUrls(included);
   const dims     = await Promise.all(dataUrls.map(src => measureImage(src)));
 
   const photoData = included.map((p, i) => {
