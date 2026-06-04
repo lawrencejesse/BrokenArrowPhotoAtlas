@@ -291,6 +291,11 @@ body {
   border-color: rgba(191,85,85,0.25);
   color: #e87979;
 }
+.draft-status.warning {
+  background: rgba(191,149,85,0.1);
+  border-color: rgba(191,149,85,0.25);
+  color: var(--orange);
+}
 
 .draft-help {
   margin: 10px 0 8px;

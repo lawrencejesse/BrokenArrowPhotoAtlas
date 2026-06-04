@@ -302,6 +302,11 @@ function normalizeRelativePath(path) {
   return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
 }
 
+function relativePathTail(path) {
+  const parts = normalizeRelativePath(path).split('/').filter(Boolean);
+  return parts.length > 1 ? parts.slice(1).join('/') : '';
+}
+
 function getRelativePath(file) {
   return file.webkitRelativePath || file.name;
 }
@@ -493,8 +498,10 @@ function downloadReviewDraft() {
 
 function featureKeyMaps(draft) {
   const byRelativePath = new Map();
+  const byRelativeTail = new Map();
   const byNameSize = new Map();
   const byFileName = new Map();
+  const duplicateTails = new Set();
   const duplicates = new Set();
 
   getDraftFeatures(draft).forEach((feature, order) => {
@@ -502,6 +509,11 @@ function featureKeyMaps(draft) {
     const wrapped = { feature, props, order };
     const rel = normalizeRelativePath(props.relativePath || props.path || props.fileName);
     if (rel) byRelativePath.set(rel, wrapped);
+    const tail = relativePathTail(props.relativePath || props.path || props.fileName);
+    if (tail) {
+      if (byRelativeTail.has(tail)) duplicateTails.add(tail);
+      byRelativeTail.set(tail, wrapped);
+    }
     const name = String(props.fileName || '').toLowerCase();
     if (name && props.fileSize) byNameSize.set(`${name}|${props.fileSize}`, wrapped);
     if (name) {
@@ -510,14 +522,17 @@ function featureKeyMaps(draft) {
     }
   });
 
+  duplicateTails.forEach(tail => byRelativeTail.delete(tail));
   duplicates.forEach(name => byFileName.delete(name));
-  return { byRelativePath, byNameSize, byFileName };
+  return { byRelativePath, byRelativeTail, byNameSize, byFileName };
 }
 
 function matchDraftFeature(photo, maps) {
   const rel = normalizeRelativePath(photo.relativePath || photo.fileName);
+  const tail = relativePathTail(photo.relativePath || photo.fileName);
   const name = String(photo.fileName || '').toLowerCase();
   return maps.byRelativePath.get(rel)
+    || maps.byRelativeTail.get(tail)
     || maps.byNameSize.get(`${name}|${photo.fileSize}`)
     || maps.byFileName.get(name)
     || null;
@@ -526,15 +541,19 @@ function matchDraftFeature(photo, maps) {
 function applyDraftToPhotos(draft) {
   if (!draft || !photos.length) return;
   const maps = featureKeyMaps(draft);
+  const draftCount = getDraftFeatures(draft).length;
   let matched = 0;
+  const matchedDraftOrders = new Set();
 
   photos.forEach(photo => {
     const match = matchDraftFeature(photo, maps);
     if (!match) {
+      photo.include = false;
       photo._draftOrder = Number.MAX_SAFE_INTEGER;
       return;
     }
     matched += 1;
+    matchedDraftOrders.add(match.order);
     const props = match.props;
     photo._draftOrder = match.order;
     photo.include = props.include !== false;
@@ -567,8 +586,15 @@ function applyDraftToPhotos(draft) {
   applySettingsToInputs(draft.metadata?.settings || {});
   if (draftStatus) {
     const total = photos.length;
-    draftStatus.textContent = `Draft applied: matched ${matched} of ${total} selected photo${total !== 1 ? 's' : ''}.`;
-    draftStatus.className = 'draft-status';
+    const missing = Math.max(0, draftCount - matchedDraftOrders.size);
+    const extra = Math.max(0, total - matched);
+    const parts = [
+      `Draft applied: matched ${matchedDraftOrders.size} of ${draftCount} draft photo${draftCount !== 1 ? 's' : ''}.`
+    ];
+    if (extra) parts.push(`${extra} extra selected photo${extra !== 1 ? 's were' : ' was'} excluded.`);
+    if (missing) parts.push(`${missing} draft photo${missing !== 1 ? 's are' : ' is'} still missing from the selected folder.`);
+    draftStatus.textContent = parts.join(' ');
+    draftStatus.className = missing ? 'draft-status warning' : 'draft-status';
     draftStatus.classList.remove('hidden');
   }
 }
@@ -588,7 +614,7 @@ draftFileInput.addEventListener('change', () => {
       if (draftStatus) {
         draftStatus.textContent = photos.length
           ? `Loaded draft ${file.name}. Applying to selected photos...`
-          : `Loaded draft ${file.name}. Now select the matching photo folder and extract EXIF.`;
+          : `Loaded draft ${file.name}. Now select the matching photo folder and extract EXIF. The app will match relative filenames and exclude extra folder photos by default.`;
         draftStatus.className = 'draft-status';
         draftStatus.classList.remove('hidden');
       }
