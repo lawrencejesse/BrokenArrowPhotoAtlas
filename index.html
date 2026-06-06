@@ -180,7 +180,7 @@
             <section class="step-card hidden" id="step-2">
                 <div class="step-label">Step 2</div>
                 <h2 class="step-heading">Review Photo Log</h2>
-                <p class="step-desc">Check the extracted data. Edit comments — they will appear in your atlas and exports. Uncheck photos to exclude them from the atlas.</p>
+                <p class="step-desc">Check the extracted data. Click a thumbnail to preview it larger, then add comments for the atlas and exports. If direction is missing or looks wrong, click Set to use the map and point to what the image is looking at.</p>
 
                 <div class="table-toolbar">
                     <span id="included-count" class="included-count"></span>
@@ -208,11 +208,11 @@
                                 <th class="col-num">Photo #</th>
                                 <th class="col-yaw">Direction</th>
                                 <th class="col-name">File Name</th>
+                                <th class="col-comment">Comment</th>
                                 <th class="col-date">Date</th>
                                 <th class="col-coord">Latitude</th>
                                 <th class="col-coord">Longitude</th>
                                 <th class="col-alt">Altitude (m)</th>
-                                <th class="col-comment">Comment</th>
                             </tr>
                         </thead>
                         <tbody id="review-tbody"></tbody>
@@ -496,6 +496,26 @@
         </div>
     </div>
 
+    <div class="photo-preview-modal hidden" id="photo-preview-modal" role="dialog" aria-modal="true" aria-labelledby="photo-preview-title">
+        <div class="photo-preview-card">
+            <div class="photo-preview-header">
+                <div>
+                    <h3 id="photo-preview-title">Preview Photo</h3>
+                    <p id="photo-preview-meta">Click into the comment box to caption this photo.</p>
+                </div>
+                <button class="btn-ghost photo-preview-close-btn" id="photo-preview-close-btn" aria-label="Close photo preview">x</button>
+            </div>
+            <div class="photo-preview-body">
+                <div class="photo-preview-image-wrap">
+                    <img id="photo-preview-image" alt="Selected photo preview">
+                </div>
+                <div class="photo-preview-comment-panel">
+                    <label class="field-label" for="photo-preview-comment">Comment</label>
+                    <textarea id="photo-preview-comment" class="comment-input photo-preview-comment" rows="6" placeholder="Add a comment..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="script.js"></script>
     <script src="atlas.js"></script>
     <script src="photolog.js"></script>

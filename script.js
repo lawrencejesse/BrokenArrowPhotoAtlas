@@ -269,6 +269,11 @@ const saveDraftBtn      = document.getElementById('save-draft-btn');
 const selectAllBtn      = document.getElementById('select-all-btn');
 const deselectAllBtn    = document.getElementById('deselect-all-btn');
 const gotoSettingsBtn   = document.getElementById('goto-settings-btn');
+const photoPreviewModal = document.getElementById('photo-preview-modal');
+const photoPreviewImage = document.getElementById('photo-preview-image');
+const photoPreviewMeta  = document.getElementById('photo-preview-meta');
+const photoPreviewComment = document.getElementById('photo-preview-comment');
+const photoPreviewCloseBtn = document.getElementById('photo-preview-close-btn');
 
 const atlasTitleInput   = document.getElementById('atlas-title');
 const atlasSubtitleInput= document.getElementById('atlas-subtitle');
@@ -1032,7 +1037,7 @@ function renderReviewTable() {
     tr.innerHTML = `
       <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span></td>
       <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
-      <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="" loading="lazy" draggable="false"></td>
+      <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="Preview ${esc(photo.fileName)}" title="Click to preview and comment" loading="lazy" draggable="false"></td>
       <td class="col-num">${photo.photoNumber}</td>
       <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">
         <div class="direction-cell">
@@ -1042,11 +1047,11 @@ function renderReviewTable() {
         </div>
       </td>
       <td class="col-name"><span class="file-name-cell">${esc(photo.fileName)}</span></td>
+      <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment...">${esc(photo.comment)}</textarea></td>
       <td class="col-date">${esc(photo.date)}</td>
       <td class="col-coord" title="${fmtCoordFull(photo.latitude)}">${fmtCoord(photo.latitude)}</td>
       <td class="col-coord" title="${fmtCoordFull(photo.longitude)}">${fmtCoord(photo.longitude)}</td>
       <td class="col-alt">${fmtNum(photo.relativeAltitude)}</td>
-      <td class="col-comment"><textarea class="comment-input" data-idx="${i}" rows="1" placeholder="Add a comment…">${esc(photo.comment)}</textarea></td>
     `;
 
     tr.querySelector('.include-checkbox').addEventListener('change', e => {
@@ -1061,6 +1066,10 @@ function renderReviewTable() {
 
     tr.querySelector('.direction-set-btn').addEventListener('click', () => {
       openDirectionModal(i);
+    });
+
+    tr.querySelector('.row-thumb').addEventListener('click', () => {
+      openPhotoPreview(i);
     });
 
     /* --- Drag-and-drop handlers --- */
@@ -1116,6 +1125,52 @@ saveDraftBtn.addEventListener('click', downloadReviewDraft);
 gotoSettingsBtn.addEventListener('click', () => {
   step3El.classList.remove('hidden');
   step3El.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+let photoPreviewIdx = null;
+
+function openPhotoPreview(idx) {
+  const photo = photos[idx];
+  if (!photo || !photoPreviewModal || !photoPreviewImage || !photoPreviewComment) return;
+
+  photoPreviewIdx = idx;
+  photoPreviewImage.src = photo.objectUrl;
+  photoPreviewMeta.textContent = `Photo ${photo.photoNumber} - ${photo.fileName}`;
+  photoPreviewComment.value = photo.comment || '';
+  photoPreviewModal.classList.remove('hidden');
+  photoPreviewComment.focus();
+}
+
+function closePhotoPreview() {
+  if (!photoPreviewModal || !photoPreviewImage) return;
+  photoPreviewModal.classList.add('hidden');
+  photoPreviewImage.removeAttribute('src');
+  photoPreviewIdx = null;
+}
+
+if (photoPreviewComment) {
+  photoPreviewComment.addEventListener('input', e => {
+    if (photoPreviewIdx === null || !photos[photoPreviewIdx]) return;
+    photos[photoPreviewIdx].comment = e.target.value;
+    const rowComment = reviewTbody.querySelector(`.comment-input[data-idx="${photoPreviewIdx}"]`);
+    if (rowComment) rowComment.value = e.target.value;
+  });
+}
+
+if (photoPreviewCloseBtn) {
+  photoPreviewCloseBtn.addEventListener('click', closePhotoPreview);
+}
+
+if (photoPreviewModal) {
+  photoPreviewModal.addEventListener('click', e => {
+    if (e.target === photoPreviewModal) closePhotoPreview();
+  });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && photoPreviewModal && !photoPreviewModal.classList.contains('hidden')) {
+    closePhotoPreview();
+  }
 });
 
 /* ---- Atlas settings -------------------------------------- */
