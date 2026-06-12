@@ -274,6 +274,10 @@ const photoPreviewImage = document.getElementById('photo-preview-image');
 const photoPreviewMeta  = document.getElementById('photo-preview-meta');
 const photoPreviewComment = document.getElementById('photo-preview-comment');
 const photoPreviewCloseBtn = document.getElementById('photo-preview-close-btn');
+const deliverablePreviewModal = document.getElementById('deliverable-preview-modal');
+const deliverablePreviewImage = document.getElementById('deliverable-preview-image');
+const deliverablePreviewTitle = document.getElementById('deliverable-preview-title');
+const deliverablePreviewCloseBtn = document.getElementById('deliverable-preview-close-btn');
 
 const atlasTitleInput   = document.getElementById('atlas-title');
 const atlasSubtitleInput= document.getElementById('atlas-subtitle');
@@ -1167,9 +1171,43 @@ if (photoPreviewModal) {
   });
 }
 
+function openDeliverablePreview(button) {
+  if (!button || !deliverablePreviewModal || !deliverablePreviewImage || !deliverablePreviewTitle) return;
+  const src = button.dataset.previewSrc;
+  const title = button.dataset.previewTitle || 'Deliverable Preview';
+  if (!src) return;
+  deliverablePreviewImage.src = src;
+  deliverablePreviewImage.alt = `${title} large preview`;
+  deliverablePreviewTitle.textContent = title;
+  deliverablePreviewModal.classList.remove('hidden');
+}
+
+function closeDeliverablePreview() {
+  if (!deliverablePreviewModal || !deliverablePreviewImage) return;
+  deliverablePreviewModal.classList.add('hidden');
+  deliverablePreviewImage.removeAttribute('src');
+}
+
+document.querySelectorAll('.deliverable-preview-btn').forEach(button => {
+  button.addEventListener('click', () => openDeliverablePreview(button));
+});
+
+if (deliverablePreviewCloseBtn) {
+  deliverablePreviewCloseBtn.addEventListener('click', closeDeliverablePreview);
+}
+
+if (deliverablePreviewModal) {
+  deliverablePreviewModal.addEventListener('click', e => {
+    if (e.target === deliverablePreviewModal) closeDeliverablePreview();
+  });
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && photoPreviewModal && !photoPreviewModal.classList.contains('hidden')) {
     closePhotoPreview();
+  }
+  if (e.key === 'Escape' && deliverablePreviewModal && !deliverablePreviewModal.classList.contains('hidden')) {
+    closeDeliverablePreview();
   }
 });
 
