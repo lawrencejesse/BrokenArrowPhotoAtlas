@@ -1422,6 +1422,105 @@ html { scroll-behavior: smooth; }
   font-weight: 700;
 }
 
+/* Deliverable examples */
+.landing-deliverables-section {
+  background: var(--slate-dark);
+  border-bottom: 1px solid var(--slate-border);
+  padding: 54px 0 58px;
+}
+
+.landing-deliverables-inner {
+  max-width: 1120px;
+}
+
+.deliverables-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 24px;
+}
+
+.deliverables-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 8px;
+}
+
+.deliverables-heading {
+  text-align: left;
+  margin-bottom: 0;
+}
+
+.deliverables-intro {
+  max-width: 390px;
+  color: var(--body-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.deliverables-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(300px, 1fr);
+  gap: 18px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 12px;
+  scrollbar-color: var(--slate-light) transparent;
+}
+
+.deliverable-card {
+  min-width: 0;
+  scroll-snap-align: start;
+  background: var(--slate-mid);
+  border: 1px solid var(--slate-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.22);
+}
+
+.deliverable-image-wrap {
+  height: 330px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.12)),
+    var(--slate-dark);
+  border-bottom: 1px solid var(--slate-border);
+}
+
+.deliverable-image-wrap img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+}
+
+.deliverable-card-body {
+  padding: 18px 18px 20px;
+}
+
+.deliverable-card-body h4 {
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.deliverable-card-body p {
+  color: var(--body-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 /* Value props */
 .landing-props-section {
   background: var(--slate-mid);
@@ -1564,6 +1663,19 @@ html { scroll-behavior: smooth; }
 
 /* --- Responsive ------------------------------------------- */
 @media (max-width: 768px) {
+  .deliverables-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .deliverables-carousel {
+    grid-auto-columns: minmax(280px, 86vw);
+    margin-right: -24px;
+    padding-right: 24px;
+  }
+  .deliverable-image-wrap {
+    height: 300px;
+  }
   .landing-usecases {
     grid-template-columns: 1fr 1fr;
   }
