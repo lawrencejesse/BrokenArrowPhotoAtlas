@@ -663,8 +663,6 @@ function loadStoredRecoveryDraft(message) {
   return true;
 }
 
-loadStoredRecoveryDraft('Found an autosaved review draft. Select the matching photo folder and extract EXIF to restore comments, selected photos, order, and settings.');
-
 function downloadReviewDraft() {
   if (!photos.length) {
     alert('Select and extract photos before saving a review draft.');
@@ -2041,3 +2039,5 @@ function triggerDownload(content, filename, mimeType) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+loadStoredRecoveryDraft('Found an autosaved review draft. Select the matching photo folder and extract EXIF to restore comments, selected photos, order, and settings.');
