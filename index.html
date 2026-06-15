@@ -228,10 +228,17 @@
                 <h2 class="step-heading">Review Photo Log</h2>
                 <p class="step-desc">Check the extracted data. Click a thumbnail to preview it larger, then add comments for the atlas and exports. If direction is missing or looks wrong, click Set to use the map and point to what the image is looking at.</p>
 
+                <div class="draft-save-panel">
+                    <div>
+                        <strong>Save your work before stepping away.</strong>
+                        <span>Downloads a small review draft GeoJSON with captions, selected photos, order, settings, GPS, and relative photo names. It does not include the image files.</span>
+                    </div>
+                    <button class="btn btn-secondary" id="save-draft-btn">Save Review Draft</button>
+                </div>
+
                 <div class="table-toolbar">
                     <span id="included-count" class="included-count"></span>
                     <div class="table-toolbar-actions">
-                        <button class="btn-ghost" id="save-draft-btn">Save review draft</button>
                         <button class="btn-ghost" id="select-all-btn">Select all</button>
                         <button class="btn-ghost" id="deselect-all-btn">Deselect all</button>
                     </div>

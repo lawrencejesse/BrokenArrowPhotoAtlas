@@ -64,6 +64,8 @@ const atlasSettings = {
 let pendingDraft = null;
 let pendingDraftName = '';
 let lastDraftSavedAt = null;
+let autosaveTimer = null;
+let suppressBeforeUnloadWarning = false;
 let currentProjectKey = '';
 let currentProjectManifest = [];
 let paidProjectKey = '';
@@ -303,6 +305,8 @@ const downloadDraftBtn  = document.getElementById('download-draft');
 let pendingFiles = [];
 
 function resetCurrentWorkflow() {
+  clearTimeout(autosaveTimer);
+  clearRecoveryDraftFromStorage();
   photos.forEach(photo => {
     if (photo.objectUrl) URL.revokeObjectURL(photo.objectUrl);
   });
@@ -610,6 +614,27 @@ function saveRecoveryDraftToStorage() {
   }
 }
 
+function clearRecoveryDraftFromStorage() {
+  try {
+    localStorage.removeItem(RECOVERY_DRAFT_KEY);
+  } catch (_) { /* localStorage may be unavailable */ }
+  lastDraftSavedAt = null;
+}
+
+function autosaveRecoveryDraft(delay = 900) {
+  if (!photos.length) return false;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    saveRecoveryDraftToStorage();
+  }, delay);
+  return true;
+}
+
+function autosaveRecoveryDraftNow() {
+  clearTimeout(autosaveTimer);
+  return saveRecoveryDraftToStorage();
+}
+
 function getRecoveryDraftFromStorage() {
   try {
     const raw = localStorage.getItem(RECOVERY_DRAFT_KEY);
@@ -638,14 +663,18 @@ function loadStoredRecoveryDraft(message) {
   return true;
 }
 
+loadStoredRecoveryDraft('Found an autosaved review draft. Select the matching photo folder and extract EXIF to restore comments, selected photos, order, and settings.');
+
 function downloadReviewDraft() {
   if (!photos.length) {
     alert('Select and extract photos before saving a review draft.');
     return false;
   }
   const draft = buildReviewDraft();
-  saveRecoveryDraftToStorage();
+  autosaveRecoveryDraftNow();
+  suppressBeforeUnloadWarning = true;
   triggerDownload(JSON.stringify(draft, null, 2), getDraftFilename(), 'application/geo+json');
+  setTimeout(() => { suppressBeforeUnloadWarning = false; }, 1000);
   return true;
 }
 
@@ -750,6 +779,7 @@ function applyDraftToPhotos(draft) {
     draftStatus.className = missing ? 'draft-status warning' : 'draft-status';
     draftStatus.classList.remove('hidden');
   }
+  autosaveRecoveryDraftNow();
 }
 
 draftFileInput.addEventListener('change', () => {
@@ -1009,6 +1039,7 @@ extractBtn.addEventListener('click', async () => {
   if (pendingDraft) applyDraftToPhotos(pendingDraft);
   currentProjectManifest = buildProjectManifest();
   currentProjectKey = buildProjectKey(currentProjectManifest);
+  autosaveRecoveryDraftNow();
   await applyStoredPaymentForCurrentProject();
   renderReviewTable();
   step2El.classList.remove('hidden');
@@ -1062,10 +1093,12 @@ function renderReviewTable() {
       photos[i].include = e.target.checked;
       tr.classList.toggle('excluded', !photos[i].include);
       updateIncludedCount();
+      autosaveRecoveryDraft();
     });
 
     tr.querySelector('.comment-input').addEventListener('input', e => {
       photos[i].comment = e.target.value;
+      autosaveRecoveryDraft();
     });
 
     tr.querySelector('.direction-set-btn').addEventListener('click', () => {
@@ -1106,6 +1139,7 @@ function renderReviewTable() {
       photos.splice(i, 0, moved);
       /* Renumber sequentially after reorder */
       photos.forEach((p, idx) => { p.photoNumber = idx + 1; });
+      autosaveRecoveryDraftNow();
       renderReviewTable();
     });
 
@@ -1116,11 +1150,13 @@ function renderReviewTable() {
 
 selectAllBtn.addEventListener('click', () => {
   photos.forEach(p => p.include = true);
+  autosaveRecoveryDraftNow();
   renderReviewTable();
 });
 
 deselectAllBtn.addEventListener('click', () => {
   photos.forEach(p => p.include = false);
+  autosaveRecoveryDraftNow();
   renderReviewTable();
 });
 
@@ -1158,6 +1194,7 @@ if (photoPreviewComment) {
     photos[photoPreviewIdx].comment = e.target.value;
     const rowComment = reviewTbody.querySelector(`.comment-input[data-idx="${photoPreviewIdx}"]`);
     if (rowComment) rowComment.value = e.target.value;
+    autosaveRecoveryDraft();
   });
 }
 
@@ -1289,6 +1326,7 @@ function populateBearingFieldDropdown() {
 if (bearingFieldSelect) {
   bearingFieldSelect.addEventListener('change', () => {
     applyBearingFieldToPhotos();
+    autosaveRecoveryDraftNow();
     renderReviewTable();
   });
 }
@@ -1428,6 +1466,7 @@ if (directionSaveBtn) {
     photo.flightYawDegree = pendingManualBearing;
     photo.bearingSource = 'Manual';
     photo.bearingManual = true;
+    autosaveRecoveryDraftNow();
     renderReviewTable();
     closeDirectionModal();
   });
@@ -1442,6 +1481,7 @@ if (directionResetBtn) {
     photo.flightYawDegree = resolved.value;
     photo.bearingSource = resolved.source;
     photo.bearingManual = false;
+    autosaveRecoveryDraftNow();
     renderReviewTable();
     closeDirectionModal();
   });
@@ -1460,6 +1500,7 @@ if (directionModal) {
 mapZoomSlider.addEventListener('input', () => {
   zoomDisplay.textContent = mapZoomSlider.value;
   atlasSettings.mapZoom = parseInt(mapZoomSlider.value, 10);
+  autosaveRecoveryDraft();
 });
 
 function isSupportedBoundaryGeoJson(geojson) {
@@ -1563,6 +1604,7 @@ boundaryFileInput.addEventListener('change', () => {
       boundaryStatus.textContent = `Boundary loaded: ${file.name}`;
       boundaryStatus.className = 'boundary-status ok';
       boundaryStatus.classList.remove('hidden');
+      autosaveRecoveryDraftNow();
     } catch (err) {
       boundaryGeoJson = null;
       boundaryStatus.textContent = `Could not read boundary file. Check that it is valid GeoJSON or KML. (${err.message})`;
@@ -1600,6 +1642,7 @@ logoFileInput.addEventListener('change', () => {
     logoPreview.src = e.target.result;
     logoPreview.classList.remove('hidden');
     clearLogoBtn.classList.remove('hidden');
+    autosaveRecoveryDraftNow();
   };
   reader.readAsDataURL(file);
 });
@@ -1610,11 +1653,13 @@ clearLogoBtn.addEventListener('click', () => {
   logoPreview.classList.add('hidden');
   clearLogoBtn.classList.add('hidden');
   logoFileInput.value = '';
+  autosaveRecoveryDraftNow();
 });
 
 accentColorPicker.addEventListener('input', () => {
   accentColorHex.value = accentColorPicker.value.toUpperCase();
   atlasSettings.accentColor = accentColorPicker.value;
+  autosaveRecoveryDraft();
 });
 
 accentColorHex.addEventListener('input', () => {
@@ -1622,6 +1667,7 @@ accentColorHex.addEventListener('input', () => {
   if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
     accentColorPicker.value = val;
     atlasSettings.accentColor = val;
+    autosaveRecoveryDraft();
   }
 });
 
@@ -1632,6 +1678,23 @@ function readBrandingSettings() {
     ? accentColorHex.value.trim() : '#BF9555';
   atlasSettings.showFooter  = document.getElementById('show-footer').checked;
 }
+
+[
+  atlasTitleInput,
+  atlasSubtitleInput,
+  labelFieldSelect,
+  showAltitudeInput,
+  document.getElementById('company-name'),
+  document.getElementById('project-name'),
+  document.getElementById('show-footer')
+].forEach(input => {
+  if (!input) return;
+  const eventName = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
+  input.addEventListener(eventName, () => {
+    readSettingsFromInputs();
+    autosaveRecoveryDraft();
+  });
+});
 
 /* Show/hide map-specific settings when output mode changes */
 document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
@@ -1647,6 +1710,7 @@ document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
     if (step4Desc) step4Desc.textContent = isAtlas
       ? 'Build your printable map atlas. Each included photo gets its own page with a satellite map, caption, and location marker.'
       : 'Build your printable photo log. Photos are paired two per page with captions — no GPS required.';
+    autosaveRecoveryDraftNow();
   });
 });
 
@@ -1672,6 +1736,7 @@ document.getElementById('batch-fill-btn').addEventListener('click', () => {
   const value = document.getElementById('batch-fill-value').value;
   if (!photos.length) return;
   photos.forEach(p => { p[field] = value; });
+  autosaveRecoveryDraftNow();
   renderReviewTable();
   document.getElementById('batch-fill-value').value = '';
 });
@@ -1686,6 +1751,7 @@ gotoGenerateBtn.addEventListener('click', () => {
   atlasSettings.layout   = getLayoutValue();
   atlasSettings.mode     = getOutputMode();
   readBrandingSettings();
+  autosaveRecoveryDraftNow();
 
   const isAtlas = atlasSettings.mode === 'atlas';
   const included = isAtlas
@@ -1892,6 +1958,13 @@ downloadCsvBtn.addEventListener('click', () => {
 if (downloadDraftBtn) {
   downloadDraftBtn.addEventListener('click', downloadReviewDraft);
 }
+
+window.addEventListener('beforeunload', e => {
+  if (!photos.length || suppressBeforeUnloadWarning) return;
+  autosaveRecoveryDraftNow();
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 /* ---- GeoJSON export -------------------------------------- */
 

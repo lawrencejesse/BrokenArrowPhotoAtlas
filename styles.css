@@ -515,6 +515,36 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
   color: var(--orange);
 }
 
+.draft-save-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(191, 149, 85, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(191, 149, 85, 0.08);
+  color: var(--body-text);
+}
+
+.draft-save-panel strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--white);
+  font-size: 14px;
+}
+
+.draft-save-panel span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.draft-save-panel .btn {
+  flex-shrink: 0;
+}
+
 /* --- Review table ----------------------------------------- */
 .table-container {
   width: 100%;
@@ -617,6 +647,16 @@ details[open] .advanced-toggle::before { transform: rotate(90deg); }
 }
 
 @media (max-width: 760px) {
+  .draft-save-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .draft-save-panel .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   #review-table {
     min-width: 860px;
     font-size: 12px;
