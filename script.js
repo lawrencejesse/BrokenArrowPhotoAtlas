@@ -66,6 +66,7 @@ let pendingDraftName = '';
 let lastDraftSavedAt = null;
 let autosaveTimer = null;
 let suppressBeforeUnloadWarning = false;
+let currentSelectionMethod = '';
 let currentProjectKey = '';
 let currentProjectManifest = [];
 let paidProjectKey = '';
@@ -153,6 +154,7 @@ function unlockPaidExport(sessionId, options = {}) {
   const projectKey = options.projectKey || currentProjectKey;
   const projectManifest = options.projectManifest || currentProjectManifest;
   rememberPaidSession(sessionId, projectKey, projectManifest);
+  window.baAnalytics?.trackPurchase(sessionId);
   if (currentProjectKey && !storedProjectMatchesCurrent({ projectKey, projectManifest })) {
     showPaidRecoveryMessage(false);
     return;
@@ -305,6 +307,9 @@ const downloadDraftBtn  = document.getElementById('download-draft');
 let pendingFiles = [];
 
 function resetCurrentWorkflow() {
+  if (photos.length) {
+    window.baAnalytics?.track('start_new_photo_log');
+  }
   clearTimeout(autosaveTimer);
   clearRecoveryDraftFromStorage();
   photos.forEach(photo => {
@@ -318,6 +323,7 @@ function resetCurrentWorkflow() {
   currentProjectKey = '';
   currentProjectManifest = [];
   paidProjectKey = '';
+  currentSelectionMethod = '';
   window._lastAtlasArgs = null;
   window._lastPhotoLogArgs = null;
   window.pendingCleanExportDownload = false;
@@ -394,7 +400,7 @@ if (startNewBtn) {
   startNewBtn.addEventListener('click', resetCurrentWorkflow);
 }
 
-function onFilesChosen(fileList) {
+function onFilesChosen(fileList, selectionMethod) {
   const images = Array.from(fileList).filter(f => f.type.startsWith('image/'));
   pendingFiles = images;
   if (images.length === 0) {
@@ -406,10 +412,15 @@ function onFilesChosen(fileList) {
   selectionSummary.textContent = `${images.length} image file${images.length !== 1 ? 's' : ''} selected.`;
   selectionSummary.classList.remove('hidden');
   extractBtn.disabled = false;
+  currentSelectionMethod = selectionMethod;
+  window.baAnalytics?.track('photos_selected', {
+    selection_method: selectionMethod,
+    photo_count_bucket: window.baAnalytics.photoCountBucket(images.length)
+  });
 }
 
-photoFilesInput.addEventListener('change', () => onFilesChosen(photoFilesInput.files));
-photoFolderInput.addEventListener('change', () => onFilesChosen(photoFolderInput.files));
+photoFilesInput.addEventListener('change', () => onFilesChosen(photoFilesInput.files, 'individual'));
+photoFolderInput.addEventListener('change', () => onFilesChosen(photoFolderInput.files, 'folder'));
 
 function normalizeRelativePath(path) {
   return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
@@ -672,6 +683,9 @@ function downloadReviewDraft() {
   autosaveRecoveryDraftNow();
   suppressBeforeUnloadWarning = true;
   triggerDownload(JSON.stringify(draft, null, 2), getDraftFilename(), 'application/geo+json');
+  window.baAnalytics?.track('review_draft_downloaded', {
+    photo_count_bucket: window.baAnalytics.photoCountBucket(photos.length)
+  });
   setTimeout(() => { suppressBeforeUnloadWarning = false; }, 1000);
   return true;
 }
@@ -792,6 +806,9 @@ draftFileInput.addEventListener('change', () => {
       }
       pendingDraft = parsed;
       pendingDraftName = file.name;
+      window.baAnalytics?.track('draft_resumed', {
+        draft_photo_count_bucket: window.baAnalytics.photoCountBucket(getDraftFeatures(parsed).length)
+      });
       if (draftStatus) {
         draftStatus.textContent = photos.length
           ? `Loaded draft ${file.name}. Applying to selected photos...`
@@ -1017,6 +1034,13 @@ extractBtn.addEventListener('click', async () => {
   const bearing = photos.filter(p => p.bearingDegree !== null).length;
   const noGps   = total - gps;
   const noBearing = bearing < total ? total - bearing : 0;
+
+  window.baAnalytics?.track('exif_extracted', {
+    selection_method: currentSelectionMethod || 'unknown',
+    photo_count_bucket: window.baAnalytics.photoCountBucket(total),
+    gps_coverage: window.baAnalytics.coverageBucket(gps, total),
+    direction_coverage: window.baAnalytics.coverageBucket(bearing, total)
+  });
 
   extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} have GPS coordinates. ${bearing} have photo direction.`;
   extractStatus.classList.remove('hidden');
@@ -1464,6 +1488,7 @@ if (directionSaveBtn) {
     photo.flightYawDegree = pendingManualBearing;
     photo.bearingSource = 'Manual';
     photo.bearingManual = true;
+    window.baAnalytics?.track('manual_direction_set');
     autosaveRecoveryDraftNow();
     renderReviewTable();
     closeDirectionModal();
@@ -1821,12 +1846,25 @@ generateAtlasBtn.addEventListener('click', async () => {
     const largePhotoHint = /invalid string length|out of memory|allocation/i.test(message)
       ? 'Generation failed because the selected photos are too large for the browser to pack into one printable HTML file. Try fewer photos, resize/compress the photos first, or split the atlas into smaller batches.'
       : `Generation failed: ${message}`;
+    window.baAnalytics?.track('generation_failed', {
+      output_mode: isAtlas ? 'atlas' : 'photo_log',
+      failure_reason: /invalid string length|out of memory|allocation/i.test(message) ? 'large_photos' : 'other',
+      photo_count_bucket: window.baAnalytics.photoCountBucket(included.length)
+    });
     generateError.textContent = largePhotoHint;
     generateError.classList.remove('hidden');
     generateAtlasBtn.disabled = false;
     generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Generate Printable Atlas' : 'Generate Photo Log'}</span>`;
     return;
   }
+
+  window.baAnalytics?.track('deliverable_generated', {
+    output_mode: isAtlas ? 'atlas' : 'photo_log',
+    layout: atlasSettings.layout,
+    photo_count_bucket: window.baAnalytics.photoCountBucket(included.length),
+    boundary_used: boundaryGeoJson ? 'yes' : 'no',
+    watermark_status: paid ? 'clean' : 'watermarked'
+  });
 
   generateAtlasBtn.disabled = false;
   generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Regenerate Atlas' : 'Regenerate Photo Log'}</span>`;
@@ -1877,6 +1915,16 @@ if (unlockExportBtn) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
       rememberPendingSession(data.sessionId, currentProjectKey, currentProjectManifest);
+      window.baAnalytics?.track('begin_checkout', {
+        currency: 'CAD',
+        value: 15,
+        items: [{
+          item_id: 'photo_atlas_site',
+          item_name: 'Photo Log Atlas Site Export',
+          price: 15,
+          quantity: 1
+        }]
+      });
 
       if (!stripeTab) {
         /* Popup was blocked — abort entirely rather than navigating away and
@@ -1896,6 +1944,7 @@ if (unlockExportBtn) {
       function handleUnlock() {
         clearInterval(serverPoll);
         rememberPaidSession(sessionId, currentProjectKey, currentProjectManifest);
+        window.baAnalytics?.trackPurchase(sessionId);
         setPaid(true, currentProjectKey);
         const downloaded = window.autoDownloadCleanExport?.();
         const hint = document.getElementById('export-hint');
@@ -1951,6 +2000,9 @@ downloadCsvBtn.addEventListener('click', () => {
   });
 
   triggerDownload(rows.join('\n'), 'photo_log.csv', 'text/csv');
+  window.baAnalytics?.track('csv_downloaded', {
+    photo_count_bucket: window.baAnalytics.photoCountBucket(included.length)
+  });
 });
 
 if (downloadDraftBtn) {
@@ -2015,6 +2067,9 @@ downloadGeojsonBtn.addEventListener('click', () => {
 
   const geojson = { type: 'FeatureCollection', features };
   triggerDownload(JSON.stringify(geojson, null, 2), 'photo_log.geojson', 'application/json');
+  window.baAnalytics?.track('geojson_downloaded', {
+    photo_count_bucket: window.baAnalytics.photoCountBucket(included.length)
+  });
 });
 
 /* ---- Helpers --------------------------------------------- */

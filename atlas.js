@@ -178,6 +178,17 @@ function triggerHtmlDownload(html, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+function trackHtmlDownload(clean, automatic) {
+  const args = window._lastAtlasArgs || window._lastPhotoLogArgs;
+  const photoCount = args?.photoData?.length || 0;
+  window.baAnalytics?.track('printable_html_downloaded', {
+    output_mode: window._lastAtlasArgs ? 'atlas' : 'photo_log',
+    export_type: clean ? 'clean' : 'watermarked',
+    download_method: automatic ? 'automatic' : 'manual',
+    photo_count_bucket: window.baAnalytics.photoCountBucket(photoCount)
+  });
+}
+
 /* Called automatically after payment is confirmed.
    Returns true if a file was downloaded, false if there was nothing to render. */
 window.autoDownloadCleanExport = function() {
@@ -186,6 +197,7 @@ window.autoDownloadCleanExport = function() {
   const dlBtn   = document.getElementById('download-atlas-html');
   const filename = (dlBtn && dlBtn.dataset.filename) || 'photo_atlas.html';
   triggerHtmlDownload(html, filename);
+  trackHtmlDownload(true, true);
   return true;
 };
 
@@ -201,6 +213,7 @@ if (window.pendingCleanExportDownload) {
     const html = buildDownloadHtml(window.paidExportUnlocked);
     if (!html) return;
     triggerHtmlDownload(html, dlBtn.dataset.filename || 'photo_atlas.html');
+    trackHtmlDownload(window.paidExportUnlocked, false);
   });
 })();
 
