@@ -4,7 +4,8 @@
   "description": "Photo Log Atlas Builder — Broken Arrow Consulting",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "analytics:weekly": "node scripts/ga4-weekly-report.js"
   },
   "dependencies": {
     "express": "^4.18.2",

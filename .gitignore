@@ -1,1 +1,3 @@
 node_modules/
+.credentials/
+*.service-account.json
