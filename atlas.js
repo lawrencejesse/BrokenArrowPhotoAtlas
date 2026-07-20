@@ -10,6 +10,8 @@
 
 const OUTPUT_IMAGE_MAX_DIMENSION = 2200;
 const OUTPUT_IMAGE_QUALITY = 0.84;
+const ESRI_IMAGERY_METADATA_URL = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/0/query';
+const ESRI_METADATA_TIMEOUT_MS = 6000;
 
 function imageBlobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -63,6 +65,70 @@ async function photosToDataUrls(included) {
   return dataUrls;
 }
 
+function formatImageryDate(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (digits.length !== 8 || digits === '99999999') return '';
+
+  const year = Number(digits.slice(0, 4));
+  const month = Number(digits.slice(4, 6));
+  const day = Number(digits.slice(6, 8));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return '';
+
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  }).format(date);
+}
+
+async function fetchImageryMetadata(photo, mapZoom, signal) {
+  const lat = Number(photo.latitude);
+  const lon = Number(photo.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const params = new URLSearchParams({
+    where: `MinMapLevel <= ${mapZoom} AND MaxMapLevel >= ${mapZoom}`,
+    outFields: 'SRC_DATE,NICE_DESC,NICE_NAME,DrawOrder',
+    geometry: `${lon},${lat}`,
+    geometryType: 'esriGeometryPoint',
+    inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects',
+    returnGeometry: 'false',
+    orderByFields: 'DrawOrder DESC',
+    resultRecordCount: '1',
+    f: 'json'
+  });
+
+  const response = await fetch(`${ESRI_IMAGERY_METADATA_URL}?${params}`, { signal });
+  if (!response.ok) throw new Error(`Esri metadata request failed (${response.status})`);
+
+  const result = await response.json();
+  const attributes = result?.features?.[0]?.attributes;
+  const date = formatImageryDate(attributes?.SRC_DATE);
+  if (!date) return null;
+
+  return {
+    date,
+    source: String(attributes.NICE_DESC || attributes.NICE_NAME || '').trim()
+  };
+}
+
+async function imageryMetadataForPhotos(included, mapZoom) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ESRI_METADATA_TIMEOUT_MS);
+
+  try {
+    const results = await Promise.allSettled(
+      included.map(photo => fetchImageryMetadata(photo, mapZoom, controller.signal))
+    );
+    return results.map(result => result.status === 'fulfilled' ? result.value : null);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /* ---- Public entry point ---------------------------------- */
 
 async function buildAtlas(included, settings, boundary, watermark) {
@@ -91,7 +157,11 @@ async function buildAtlas(included, settings, boundary, watermark) {
     console.warn('Could not load SVG assets, using fallback markers.', e);
   }
 
-  const dataUrls = await photosToDataUrls(included);
+  const mapZoom = parseInt(settings.mapZoom, 10) || 16;
+  const [dataUrls, imageryMetadata] = await Promise.all([
+    photosToDataUrls(included),
+    imageryMetadataForPhotos(included, mapZoom)
+  ]);
 
   const photoData = included.map((p, i) => {
     const labelVal = p[settings.labelField] ?? p.photoNumber;
@@ -105,6 +175,7 @@ async function buildAtlas(included, settings, boundary, watermark) {
       yaw:   p.bearingDegree ?? p.flightYawDegree ?? p.gimbalYawDegree ?? 0,
       src:   dataUrls[i],
       fileName: p.fileName,
+      imageryMetadata: imageryMetadata[i],
       caption: {
         photo:    String(labelVal ?? ''),
         date:     p.date ?? '',
@@ -315,6 +386,16 @@ body {
 }
 
 .leaflet-control-attribution { font-size: 6px !important; }
+
+.imagery-meta-ctrl {
+  background: rgba(255, 255, 255, 0.78);
+  color: #555;
+  padding: 2px 4px;
+  border-radius: 1px;
+  font-size: 6.5pt;
+  font-weight: 400;
+  line-height: 1.2;
+}
 
 .photo-arrow {
   width: 28px;
@@ -671,7 +752,7 @@ ${pages}
   function imageryLayer() {
     return L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community', maxZoom: 20 }
+      { attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community', maxZoom: 20 }
     );
   }
 
@@ -707,6 +788,17 @@ ${pages}
           style: { color: '#ffff00', weight: 2, fillOpacity: 0.05 }
         }).addTo(map);
       } catch (e) { console.warn('boundary layer error', e); }
+    }
+
+    if (item.imageryMetadata && item.imageryMetadata.date) {
+      var imageryMetaCtrl = L.control({ position: 'topleft' });
+      imageryMetaCtrl.onAdd = function() {
+        var div = L.DomUtil.create('div', 'imagery-meta-ctrl');
+        var source = item.imageryMetadata.source ? ' | ' + item.imageryMetadata.source : '';
+        div.textContent = 'Esri World Imagery | Captured ' + item.imageryMetadata.date + source;
+        return div;
+      };
+      imageryMetaCtrl.addTo(map);
     }
 
     var northCtrl = L.control({ position: 'topright' });
