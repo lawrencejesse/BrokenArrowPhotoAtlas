@@ -2,112 +2,119 @@
 
 Browser-based photo log and map atlas builder for field, drone, inspection, and consulting photo documentation.
 
-The app extracts EXIF metadata locally in the browser, lets users review and caption photos, then generates printable HTML that can be saved to PDF from the browser. Photos are not uploaded or stored by the app.
+The app extracts EXIF metadata and renders deliverables in the browser. Photo bytes stay on the user's device. Accounts are optional: signed-in users can save the small draft metadata needed to resume a session, and company workspaces can share sessions and billing.
+
+## Product Lanes
+
+- **Guest:** Build a full watermarked preview with no account; pay $15 CAD for a clean export.
+- **Personal account:** Save draft metadata online and recover purchases across sessions.
+- **Company workspace:** Invite employees, share saved sessions, and centralize billing.
+- **Paid company:** One active Stripe team subscription includes clean exports for all current organization members.
+
+Clerk handles sign-in, organizations, invitations, and roles. PostgreSQL stores only draft metadata, payment records, and billing entitlements. Stripe remains the source of truth for charges and subscriptions.
 
 ## What It Does
 
 - Select individual photos or a full folder of photos.
-- Extract GPS, date, altitude, and yaw metadata in the browser.
+- Extract GPS, date, altitude, and yaw metadata locally.
 - Review, reorder, include/exclude, and caption photos.
-- Generate either:
-  - Map Atlas: one GPS photo per page with satellite map context.
-  - Photo Log: two photos per page, no GPS required.
+- Generate a map atlas or a classic two-photo log.
 - Add optional branding, project title, company name, accent color, logo, and footer.
 - Export CSV, GeoJSON, printable HTML, and review draft GeoJSON.
-- Unlock clean, non-watermarked exports through Stripe Checkout.
+- Unlock clean exports through Stripe Checkout or an active company plan.
 
-## Review Draft Workflow
+## Saved Session Privacy
 
-Review drafts are small GeoJSON save files. They store the project metadata needed to resume or hand off a job:
+Downloaded and online sessions can contain:
 
-- photo order
-- include/exclude choices
+- photo order and include/exclude choices
 - captions/comments
 - GPS and yaw metadata
 - relative photo names/paths
 - file size/date matching hints
-- atlas/photo log settings
+- atlas/photo-log settings
 
-Drafts do not store image bytes. To resume a draft, the user selects the same photo folder, then loads the draft GeoJSON. This keeps the app lightweight and avoids storing client photo libraries.
+They never contain photo bytes. When resuming, the user selects the original photo folder and the app matches those local files to the saved metadata. Online saving is explicit, not automatic.
 
-This supports a junior/senior review workflow:
+## Payment Reliability Model
 
-1. Junior selects photos, fills captions, and saves a review draft.
-2. Junior sends the draft plus the original photo folder or shared-drive link to a reviewer.
-3. Reviewer selects the same folder, resumes the draft, edits as needed, and generates the final export.
-4. Payment is only needed when unlocking a clean final export.
+- A purchase record is created before Stripe Checkout begins.
+- Stripe session creation uses an idempotency key, so retries do not create duplicate sessions.
+- The purchase is bound to privacy-preserving SHA-256 hashes of the photo-set manifest.
+- Stripe webhooks record completed payments even if the browser closes.
+- Browser polling remains as a fast confirmation path, but it is no longer the only record of payment.
+- A stored recovery token is valid for 30 days on the same browser. Signed-in purchases can also be associated with the active personal or company workspace.
+- Normal caption, order, branding, layout, and small photo-set revisions remain covered; a mostly different photo set requires a new unlock.
 
-## Payment Recovery Model
-
-The Stripe unlock is tied to a site/photo-set manifest, not to every caption or layout detail. This means one payment can cover normal revision work for the same site:
-
-- caption edits
-- reordering
-- include/exclude tweaks
-- branding changes
-- landscape/portrait changes
-- atlas/photo-log mode changes
-- small photo swaps
-
-A mostly different photo folder is treated as a new job and requires a new unlock. This keeps the workflow friendly for consultants without turning one payment into unlimited unrelated sites.
+The generated file is still created client-side. This is a customer-reliability paywall, not DRM; determined users can modify browser code. That is an intentional tradeoff for a private, fast $15 workflow tool.
 
 ## Local Development
 
-Install dependencies:
-
 ```bash
 npm install
-```
-
-Start the app:
-
-```bash
+npm test
 npm start
 ```
 
-Open:
+Open `http://localhost:5000`. Without production secrets, the guest builder still works, while accounts and payments fail closed.
+
+## Environment Variables
+
+Core production configuration:
 
 ```text
-http://localhost:5000
-```
-
-## Stripe Configuration
-
-The server expects these environment variables:
-
-```text
+DATABASE_URL
+PUBLIC_APP_URL=https://photolog.brokenarrow.pro
 STRIPE_SECRET_KEY
 STRIPE_PRICE_ID
-ADMIN_TOKEN
+STRIPE_WEBHOOK_SECRET
 ```
 
-`STRIPE_PRICE_ID` is optional because the app has a built-in early-access fallback price for the current $15 CAD/site unlock. Set `STRIPE_PRICE_ID` in Replit Secrets when you need to override that default without changing code.
+Optional account and company features:
 
-If `STRIPE_SECRET_KEY` is missing, checkout endpoints return a configuration error and the browser app remains usable for watermarked previews.
+```text
+CLERK_PUBLISHABLE_KEY
+CLERK_SECRET_KEY
+CLERK_AUTHORIZED_PARTIES=https://photolog.brokenarrow.pro,https://photolog.replit.app
+STRIPE_TEAM_PRICE_ID
+```
+
+`STRIPE_PRICE_ID` retains the current early-access fallback if omitted, but explicitly setting it is safer. `STRIPE_TEAM_PRICE_ID` must point to a recurring Stripe Price. Never place secret values in `.replit`, source files, or GitHub.
+
+## Stripe Webhook
+
+Create a Stripe webhook endpoint at:
+
+```text
+https://photolog.brokenarrow.pro/api/stripe/webhook
+```
+
+Subscribe it to:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+Store the endpoint signing secret as `STRIPE_WEBHOOK_SECRET` in Replit Secrets.
 
 ## Project Structure
 
 ```text
-index.html       Main UI
-styles.css       App styles
-script.js        Browser workflow, EXIF extraction, drafts, payment recovery
-atlas.js         Printable map atlas renderer
-photolog.js      Printable photo log renderer
-server.js        Express static server and Stripe endpoints
-ROADMAP.md       Product ideas and future workflow notes
+app.js             Express application and API routes
+server.js          Process entry point
+lib/auth.js        Clerk authentication/workspace adapter
+lib/payment.js     Payment fingerprints, tokens, and entitlement rules
+lib/store.js       PostgreSQL and test-memory storage adapters
+accounts.js        Optional account, saved-session, and billing UI
+script.js          Browser workflow, EXIF, drafts, and checkout recovery
+atlas.js           Printable map atlas renderer
+photolog.js        Printable photo log renderer
+test/app.test.js   Payment, webhook, team, privacy, and isolation tests
+docs/              Deployment and architecture notes
 ```
 
-## Deployment Checklist
+## Production Rollout
 
-Before deploying to live customers:
-
-1. Deploy with Stripe test keys.
-2. Generate a watermarked preview.
-3. Save a review draft.
-4. Complete a Stripe test checkout.
-5. Confirm the clean HTML downloads.
-6. Refresh/reopen the app.
-7. Reload the same photo folder and draft.
-8. Confirm payment recovery unlocks the same site.
-9. Load a different photo folder and confirm it requires a new unlock.
-
+Do not merge and publish this branch directly over the live checkout. Follow [the staged Replit rollout](docs/REPLIT_ROLLOUT.md), beginning with rotating the exposed legacy admin token, creating the database and Clerk tenant, and running Stripe entirely in test mode.

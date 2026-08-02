@@ -13,7 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/full.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
@@ -28,7 +28,17 @@
                         <p class="app-subtitle">Create a printable map-based photo log from geotagged drone or field photos.</p>
                     </div>
                 </div>
-                <a class="header-link" href="https://brokenarrow.pro" target="_blank" rel="noopener">brokenarrow.pro</a>
+                <div class="header-actions">
+                    <a class="header-link" href="https://brokenarrow.pro" target="_blank" rel="noopener">brokenarrow.pro</a>
+                    <div class="account-controls hidden" id="account-controls">
+                        <button class="btn btn-secondary account-sign-in" id="account-sign-in-btn" type="button">Sign in</button>
+                        <div class="account-signed-in hidden" id="account-signed-in">
+                            <div class="organization-switcher" id="organization-switcher"></div>
+                            <button class="btn-ghost account-workspace-btn" id="account-workspace-btn" type="button">Sessions &amp; billing</button>
+                            <div class="account-user-button" id="account-user-button"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="gradient-bar"></div>
         </header>
@@ -50,9 +60,9 @@
             <!-- Hero -->
             <div class="landing-hero">
                 <div class="landing-inner">
-                    <div class="landing-badge">Browser-based &middot; No uploads &middot; No account needed</div>
+                    <div class="landing-badge">Browser-based &middot; Photos stay local &middot; No account needed</div>
                     <h2 class="landing-headline">Turn a folder of photos into a branded photo log or GPS map atlas</h2>
-                    <p class="landing-sub">Drop in your field or drone photos, add captions and your company logo, then generate a print-ready document in seconds. Everything runs in your browser — nothing leaves your device.</p>
+                    <p class="landing-sub">Drop in your field or drone photos, add captions and your company logo, then generate a print-ready document in seconds. Photos stay on your device; signing in is optional.</p>
                     <a href="#step-1" class="btn btn-primary landing-cta">Get Started &rarr;</a>
                 </div>
             </div>
@@ -111,7 +121,7 @@
                         <li>Edit captions and photo numbers right in the browser before generating</li>
                         <li>Add your company logo, project name, and accent colour to every page</li>
                         <li>Generate a print-ready HTML document, then print to PDF from your browser</li>
-                        <li>Nothing is stored or uploaded — all processing happens locally</li>
+                        <li>Photo files stay on your device — optional accounts save only the small session metadata needed to resume work</li>
                     </ul>
                 </div>
             </div>
@@ -236,7 +246,10 @@
                         <strong>Save your work before stepping away.</strong>
                         <span>Downloads a small review draft GeoJSON with captions, selected photos, order, settings, GPS, and relative photo names. It does not include the image files.</span>
                     </div>
-                    <button class="btn btn-secondary" id="save-draft-btn">Save Review Draft</button>
+                    <div class="draft-save-actions">
+                        <button class="btn btn-secondary hidden" id="save-cloud-draft-btn" type="button">Save to Account</button>
+                        <button class="btn btn-secondary" id="save-draft-btn">Download Review Draft</button>
+                    </div>
                 </div>
 
                 <div class="table-toolbar">
@@ -476,6 +489,7 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                         Export unlocked
                     </div>
+                    <div class="team-entitlement-badge hidden" id="team-entitlement-badge">Included with your company plan</div>
                     <p class="export-hint" id="export-hint">Preview includes a watermark. Unlock once per session for a clean, print-ready download.</p>
                 </div>
 
@@ -532,7 +546,7 @@
                     <h3 id="direction-modal-title">Set Photo Direction</h3>
                     <p id="direction-modal-subtitle">Click the map where the camera was facing.</p>
                 </div>
-                <button class="btn-ghost direction-close-btn" id="direction-close-btn" aria-label="Close direction editor">�-</button>
+                <button class="btn-ghost direction-close-btn" id="direction-close-btn" type="button" aria-label="Close direction editor">×</button>
             </div>
             <div class="direction-modal-body">
                 <div class="direction-photo-panel">
@@ -586,9 +600,48 @@
             </div>
         </div>
     </div>
+    <div class="account-modal hidden" id="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+        <div class="account-modal-card">
+            <div class="account-modal-header">
+                <div>
+                    <div class="account-kicker">Optional account</div>
+                    <h3 id="account-modal-title">Saved sessions &amp; company billing</h3>
+                    <p id="account-workspace-label">Your current workspace</p>
+                </div>
+                <button class="btn-ghost account-modal-close" id="account-modal-close" type="button" aria-label="Close account panel">x</button>
+            </div>
+            <div class="account-modal-body">
+                <section class="account-section">
+                    <div class="account-section-heading">
+                        <div>
+                            <h4>Saved sessions</h4>
+                            <p>Only draft metadata is saved. Select the original photo folder after reopening a session.</p>
+                        </div>
+                        <button class="btn btn-secondary" id="account-save-current-btn" type="button">Save current session</button>
+                    </div>
+                    <div class="account-status hidden" id="account-status" role="status"></div>
+                    <div class="account-session-list" id="account-session-list"></div>
+                </section>
+                <section class="account-section account-billing-section">
+                    <div>
+                        <h4>Company access</h4>
+                        <p id="account-billing-copy">Select or create a company workspace to invite employees and use company billing.</p>
+                    </div>
+                    <div class="account-billing-actions">
+                        <button class="btn btn-primary hidden" id="account-team-checkout-btn" type="button">Start company plan</button>
+                        <button class="btn btn-secondary hidden" id="account-billing-portal-btn" type="button">Manage billing</button>
+                    </div>
+                </section>
+                <div class="account-privacy-note">
+                    <strong>What is stored:</strong> captions, settings, GPS, file names, file sizes, and timestamps. Photo bytes never leave your device.
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="script.js"></script>
     <script src="atlas.js"></script>
     <script src="photolog.js"></script>
+    <script src="accounts.js"></script>
     <script>
         (function () {
             var nav = document.getElementById('sticky-nav');

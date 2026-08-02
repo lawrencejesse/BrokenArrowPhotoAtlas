@@ -33,7 +33,7 @@ Feature ideas for future development. Not prioritized by date — just captured 
 
 **Problem:** Right now, all caption work is lost when the browser is closed. There's no way for a junior to do the first pass and hand it to a senior for review without starting over. We also don't want to charge twice for a draft + final export.
 
-**Core idea — Save enriched GeoJSON:**
+**Implemented foundation — Save enriched GeoJSON:**
 - After EXIF extraction and any user edits (captions, comments, bearing, include flags), allow the user to export the *enriched* GeoJSON — not just raw EXIF, but everything they've filled in.
 - Filename format: `{surface-location}_{YYYY-MM-DD}.geojson` so drafts are easy to sort and find.
 
@@ -45,7 +45,7 @@ Feature ideas for future development. Not prioritized by date — just captured 
 **Review / watermark logic:**
 - Drafts in review still show the watermark — that's fine and expected.
 - The payment unlock happens once, at final export. Junior does the draft, senior reviews and tweaks, one unlock, done.
-- Keep it simple: the GeoJSON *is* the save file. No accounts, no cloud sync, no database — just a file the team can email or drop in a shared folder.
+- The GeoJSON remains the portable, no-account save file. Optional accounts now add cloud-saved copies of the same metadata and company workspaces; photo bytes still remain local.
 
 ---
 

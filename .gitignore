@@ -1,3 +1,6 @@
 node_modules/
 .credentials/
 *.service-account.json
+.env
+.env.*
+!.env.example

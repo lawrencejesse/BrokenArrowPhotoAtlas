@@ -10,6 +10,8 @@
 let photos = [];
 let boundaryGeoJson = null;
 let paid = false;
+let paidSource = 'none';
+let teamEntitled = false;
 window.paidExportUnlocked = false;
 window.pendingCleanExportDownload = false;
 
@@ -17,7 +19,7 @@ const DRAFT_SCHEMA_VERSION = 1;
 const RECOVERY_DRAFT_KEY = 'ba_photo_atlas_recovery_draft_v1';
 const PENDING_SESSION_KEY = 'ba_photo_atlas_pending_session_id';
 const PAID_SESSION_KEY = 'ba_photo_atlas_paid_session_id';
-const PAYMENT_RECOVERY_MS = 24 * 60 * 60 * 1000;
+const PAYMENT_RECOVERY_MS = 30 * 24 * 60 * 60 * 1000;
 const PROJECT_MATCH_THRESHOLD = 0.75;
 const EXIF_PARSE_OPTIONS = {
   tiff: true,
@@ -69,39 +71,53 @@ let suppressBeforeUnloadWarning = false;
 let currentSelectionMethod = '';
 let currentProjectKey = '';
 let currentProjectManifest = [];
+let currentProjectFingerprint = '';
+let currentManifestHashes = [];
 let paidProjectKey = '';
 
 /* ---- Payment helpers ------------------------------------- */
 
-function setPaid(val, projectKey = currentProjectKey) {
+function setPaid(val, projectKey = currentProjectKey, source = 'purchase') {
+  if (!val && teamEntitled) {
+    val = true;
+    projectKey = 'team';
+    source = 'team';
+  }
   paid = val;
+  paidSource = val ? source : 'none';
   window.paidExportUnlocked = val;
   paidProjectKey = val ? projectKey : '';
   updateExportUI();
 }
 
-function rememberPaidSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest) {
+function checkoutStorageRecord(sessionId, projectKey, projectManifest, payment = {}) {
+  return {
+    sessionId,
+    projectKey,
+    projectManifest,
+    projectFingerprint: payment.projectFingerprint || currentProjectFingerprint || '',
+    manifestHashes: payment.manifestHashes || currentManifestHashes || [],
+    purchaseToken: payment.purchaseToken || '',
+    savedAt: Date.now()
+  };
+}
+
+function rememberPaidSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest, payment = {}) {
   if (!sessionId) return;
   try {
-    localStorage.setItem(PAID_SESSION_KEY, JSON.stringify({
-      sessionId,
-      projectKey,
-      projectManifest,
-      savedAt: Date.now()
-    }));
+    localStorage.setItem(PAID_SESSION_KEY, JSON.stringify(
+      checkoutStorageRecord(sessionId, projectKey, projectManifest, payment)
+    ));
     localStorage.removeItem(PENDING_SESSION_KEY);
   } catch (_) { /* localStorage may be unavailable */ }
 }
 
-function rememberPendingSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest) {
+function rememberPendingSession(sessionId, projectKey = currentProjectKey, projectManifest = currentProjectManifest, payment = {}) {
   if (!sessionId) return;
   try {
-    localStorage.setItem(PENDING_SESSION_KEY, JSON.stringify({
-      sessionId,
-      projectKey,
-      projectManifest,
-      savedAt: Date.now()
-    }));
+    localStorage.setItem(PENDING_SESSION_KEY, JSON.stringify(
+      checkoutStorageRecord(sessionId, projectKey, projectManifest, payment)
+    ));
   } catch (_) { /* localStorage may be unavailable */ }
 }
 
@@ -112,27 +128,51 @@ function getStoredCheckoutSession(key) {
     let sessionId = raw;
     let projectKey = '';
     let projectManifest = [];
+    let projectFingerprint = '';
+    let manifestHashes = [];
+    let purchaseToken = '';
     let savedAt = Date.now();
     try {
       const parsed = JSON.parse(raw);
       sessionId = parsed.sessionId || '';
       projectKey = parsed.projectKey || parsed.exportKey || '';
       projectManifest = Array.isArray(parsed.projectManifest) ? parsed.projectManifest : [];
+      projectFingerprint = parsed.projectFingerprint || '';
+      manifestHashes = Array.isArray(parsed.manifestHashes) ? parsed.manifestHashes : [];
+      purchaseToken = parsed.purchaseToken || '';
       savedAt = Number(parsed.savedAt) || 0;
     } catch (_) { /* older storage used a plain session id */ }
-    if (!sessionId || !projectKey || Date.now() - savedAt > PAYMENT_RECOVERY_MS) {
+    if (!sessionId || Date.now() - savedAt > PAYMENT_RECOVERY_MS) {
       localStorage.removeItem(key);
       return null;
     }
-    return { sessionId, projectKey, projectManifest };
+    return {
+      sessionId, projectKey, projectManifest, projectFingerprint,
+      manifestHashes, purchaseToken
+    };
   } catch (_) {
     return null;
   }
 }
 
-async function verifyCheckoutSession(sessionId) {
+async function verifyCheckoutSession(sessionId, payment = {}) {
   if (!sessionId) return false;
-  const r = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+  const projectFingerprint = payment.projectFingerprint || currentProjectFingerprint;
+  const manifestHashes = payment.manifestHashes || currentManifestHashes;
+  const purchaseToken = payment.purchaseToken || '';
+  const hasDurableRecovery = projectFingerprint && manifestHashes.length && purchaseToken;
+  const r = hasDurableRecovery
+    ? await fetch('/api/verify-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          purchaseToken,
+          projectKey: projectFingerprint,
+          manifestHashes
+        })
+      })
+    : await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
   const json = await r.json();
   if (!r.ok) throw new Error(json.error || 'Could not verify checkout session');
   return !!json.paid;
@@ -150,21 +190,35 @@ function showPaidRecoveryMessage(downloaded) {
   }
 }
 
+function showStepOneRecoveryMessage(message) {
+  const status = document.getElementById('draft-status');
+  if (!status) return;
+  status.textContent = message;
+  status.className = 'draft-status warning';
+  status.classList.remove('hidden');
+}
+
 function unlockPaidExport(sessionId, options = {}) {
   const projectKey = options.projectKey || currentProjectKey;
   const projectManifest = options.projectManifest || currentProjectManifest;
-  rememberPaidSession(sessionId, projectKey, projectManifest);
+  const payment = {
+    projectFingerprint: options.projectFingerprint,
+    manifestHashes: options.manifestHashes,
+    purchaseToken: options.purchaseToken
+  };
+  rememberPaidSession(sessionId, projectKey, projectManifest, payment);
   window.baAnalytics?.trackPurchase(sessionId);
   if (currentProjectKey && !storedProjectMatchesCurrent({ projectKey, projectManifest })) {
     showPaidRecoveryMessage(false);
     return;
   }
   if (!currentProjectKey) {
-    loadStoredRecoveryDraft(options.recoveryMessage || 'Payment verified. Select the matching photo folder and extract EXIF to rebuild your clean export.');
+    const message = options.recoveryMessage || 'Payment verified. Select the matching photo folder and extract EXIF to rebuild your clean export.';
+    if (!loadStoredRecoveryDraft(message)) showStepOneRecoveryMessage(message);
     showPaidRecoveryMessage(false);
     return;
   }
-  setPaid(true, projectKey);
+  setPaid(true, projectKey, 'purchase');
   let downloaded = false;
   if (options.autoDownload) {
     downloaded = window.autoDownloadCleanExport?.() === true;
@@ -179,54 +233,72 @@ function updateExportUI() {
   const btn   = document.getElementById('unlock-export-btn');
   const badge = document.getElementById('export-unlocked-badge');
   const hint  = document.getElementById('export-hint');
+  const teamBadge = document.getElementById('team-entitlement-badge');
   if (!btn) return;
   if (paid) {
     btn.classList.add('hidden');
     if (badge) badge.classList.remove('hidden');
-    if (hint)  hint.textContent = 'Export unlocked — download the clean, print-ready file below.';
+    if (teamBadge) teamBadge.classList.toggle('hidden', paidSource !== 'team');
+    if (hint) hint.textContent = paidSource === 'team'
+      ? 'Your company plan includes this clean export.'
+      : 'Export unlocked — download the clean, print-ready file below.';
   } else {
     btn.classList.remove('hidden');
     if (badge) badge.classList.add('hidden');
+    if (teamBadge) teamBadge.classList.add('hidden');
     if (hint)  hint.textContent = 'Preview includes a watermark. Unlock once per session for a clean, print-ready download.';
   }
 }
 
-/* ---- Admin bypass ---------------------------------------- */
-(function checkAdminBypass() {
-  const params    = new URLSearchParams(window.location.search);
-  const adminTok  = params.get('admin');
-
-  if (adminTok) {
-    const clean = new URL(window.location.href);
-    clean.searchParams.delete('admin');
-    window.history.replaceState({}, '', clean.toString());
-    fetch(`/api/admin-unlock?token=${encodeURIComponent(adminTok)}`)
-      .then(r => r.json())
-      .then(data => { if (data.ok) setPaid(true); })
-      .catch(err  => console.warn('Admin unlock failed:', err));
+window.baSetTeamEntitlement = function(enabled) {
+  teamEntitled = !!enabled;
+  if (teamEntitled) {
+    setPaid(true, 'team', 'team');
+  } else if (paidSource === 'team') {
+    setPaid(false, '', 'none');
+  } else {
+    updateExportUI();
   }
-
-})();
+};
 
 (function recoverPaymentUnlock() {
   const params = new URLSearchParams(window.location.search);
-  const sessionId = params.get('session_id');
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const sessionId = hashParams.get('session_id') || params.get('session_id');
+  const purchaseToken = hashParams.get('purchase_token') || params.get('purchase_token') || '';
 
   if (sessionId) {
     const clean = new URL(window.location.href);
     clean.searchParams.delete('session_id');
+    clean.searchParams.delete('purchase_token');
+    clean.searchParams.delete('checkout');
+    clean.hash = '';
     window.history.replaceState({}, '', clean.toString());
 
-    verifyCheckoutSession(sessionId)
+    const pending = getStoredCheckoutSession(PENDING_SESSION_KEY);
+    const payment = pending && pending.sessionId === sessionId
+      ? pending
+      : { purchaseToken };
+    if (!payment.projectFingerprint || !payment.manifestHashes?.length) {
+      rememberPendingSession(sessionId, '', [], { purchaseToken });
+      const message = 'Payment return found. Select the matching photo folder and extract EXIF to verify and unlock it.';
+      if (!loadStoredRecoveryDraft(message)) showStepOneRecoveryMessage(message);
+      showPaidRecoveryMessage(false);
+      return;
+    }
+
+    verifyCheckoutSession(sessionId, payment)
       .then(isPaid => {
         if (!isPaid) return;
-        const pending = getStoredCheckoutSession(PENDING_SESSION_KEY);
         const projectKey = pending && pending.sessionId === sessionId ? pending.projectKey : currentProjectKey;
         const projectManifest = pending && pending.sessionId === sessionId ? pending.projectManifest : currentProjectManifest;
         unlockPaidExport(sessionId, {
           autoDownload: true,
           projectKey,
           projectManifest,
+          projectFingerprint: payment.projectFingerprint,
+          manifestHashes: payment.manifestHashes,
+          purchaseToken: payment.purchaseToken,
           recoveryMessage: 'Payment verified. If your original tab is still open, return to it. If it refreshed, select the matching photo folder here and extract EXIF to rebuild your clean export.'
         });
       })
@@ -238,8 +310,8 @@ function updateExportUI() {
     if (!currentProjectKey) return;
     const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
     if (!rememberedSession) return;
-    verifyCheckoutSession(rememberedSession.sessionId)
-      .then(isPaid => { if (isPaid) unlockPaidExport(rememberedSession.sessionId, { autoDownload: false, projectKey: rememberedSession.projectKey, projectManifest: rememberedSession.projectManifest }); })
+    verifyCheckoutSession(rememberedSession.sessionId, rememberedSession)
+      .then(isPaid => { if (isPaid) unlockPaidExport(rememberedSession.sessionId, { autoDownload: false, ...rememberedSession }); })
       .catch(err => console.warn('Stored checkout verification failed:', err));
   } catch (_) { /* localStorage may be unavailable */ }
 })();
@@ -322,6 +394,8 @@ function resetCurrentWorkflow() {
   boundaryGeoJson = null;
   currentProjectKey = '';
   currentProjectManifest = [];
+  currentProjectFingerprint = '';
+  currentManifestHashes = [];
   paidProjectKey = '';
   currentSelectionMethod = '';
   window._lastAtlasArgs = null;
@@ -393,6 +467,7 @@ function resetCurrentWorkflow() {
   extractBtn.textContent = 'Extract EXIF';
   extractBtn.disabled = true;
   updateExportUI();
+  window.dispatchEvent(new CustomEvent('ba:new-project'));
   step1El?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -529,6 +604,35 @@ function buildReviewDraft() {
   };
 }
 
+window.baBuildCloudDraft = function() {
+  if (!photos.length) return null;
+  const draft = buildReviewDraft();
+  return {
+    title: atlasTitleInput?.value.trim() || atlasSettings.title || '',
+    projectName: document.getElementById('project-name')?.value.trim() || atlasSettings.projectName || '',
+    projectKey: currentProjectKey || buildProjectKey(buildProjectManifest()),
+    photoCount: photos.length,
+    draft
+  };
+};
+
+window.baLoadCloudDraft = function(draft, name = 'saved session') {
+  if (!draft || draft.type !== 'FeatureCollection' || !Array.isArray(draft.features)) return false;
+  if ((photos.length || pendingFiles.length) && !window.confirm('Replace the current unsaved workflow with this saved session?')) {
+    return false;
+  }
+  if (photos.length || pendingFiles.length) resetCurrentWorkflow();
+  pendingDraft = draft;
+  pendingDraftName = name;
+  applySettingsToInputs(draft.metadata?.settings || {});
+  if (draftStatus) {
+    draftStatus.textContent = `Loaded ${name}. Select the matching photo folder, then extract EXIF to restore captions and settings.`;
+    draftStatus.className = 'draft-status warning';
+    draftStatus.classList.remove('hidden');
+  }
+  return true;
+};
+
 function getDraftFilename() {
   const datePart = new Date().toLocaleDateString('en-CA');
   const surfaceLocation = atlasTitleInput?.value.trim() || atlasSettings.title || 'photo_atlas';
@@ -559,6 +663,60 @@ function buildProjectManifest() {
 function buildProjectKey(manifest = currentProjectManifest) {
   return simpleHash(manifest.join('\n'));
 }
+
+async function sha256Hex(value) {
+  if (!window.crypto?.subtle) throw new Error('Secure payment recovery is not supported by this browser.');
+  const bytes = new TextEncoder().encode(String(value || ''));
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function makeClientRequestId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const bytes = window.crypto.getRandomValues(new Uint8Array(18));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function paymentManifestItem(item) {
+  const [pathPart, ...restParts] = String(item || '').split('|');
+  const normalized = normalizeRelativePath(pathPart);
+  const parts = normalized.split('/').filter(Boolean);
+  const stablePath = parts.length > 1 ? parts.slice(1).join('/') : (parts[0] || normalized);
+  return `${stablePath}|${restParts.join('|')}`;
+}
+
+async function refreshPaymentFingerprint(manifest = currentProjectManifest) {
+  if (!manifest.length) {
+    currentManifestHashes = [];
+    currentProjectFingerprint = '';
+    return null;
+  }
+  const hashes = await Promise.all(manifest.map(item => sha256Hex(paymentManifestItem(item))));
+  currentManifestHashes = [...new Set(hashes)].sort();
+  currentProjectFingerprint = await sha256Hex(currentManifestHashes.join('\n'));
+  return {
+    projectFingerprint: currentProjectFingerprint,
+    manifestHashes: currentManifestHashes
+  };
+}
+
+window.baGetPaymentContext = function() {
+  if (!currentProjectFingerprint || !currentManifestHashes.length) return null;
+  return {
+    projectKey: currentProjectFingerprint,
+    manifestHashes: [...currentManifestHashes]
+  };
+};
+
+window.baApplyAccountProjectEntitlement = function(result) {
+  if (result?.source === 'team' && result.entitled) {
+    window.baSetTeamEntitlement?.(true);
+  } else if (result?.source === 'purchase' && result.entitled) {
+    setPaid(true, currentProjectKey, 'account_purchase');
+  } else if (paidSource === 'account_purchase') {
+    setPaid(false, '', 'none');
+  }
+};
 
 function projectManifestVariants(item) {
   const [pathPart, ...restParts] = String(item || '').split('|');
@@ -593,17 +751,25 @@ function storedProjectMatchesCurrent(stored) {
 async function applyStoredPaymentForCurrentProject() {
   if (!currentProjectKey) return;
   const rememberedSession = getStoredCheckoutSession(PAID_SESSION_KEY) || getStoredCheckoutSession(PENDING_SESSION_KEY);
-  if (!storedProjectMatchesCurrent(rememberedSession)) {
+  const canServerMatch = !!(
+    rememberedSession?.purchaseToken
+    && currentProjectFingerprint
+    && currentManifestHashes.length
+  );
+  if (!canServerMatch && !storedProjectMatchesCurrent(rememberedSession)) {
     setPaid(false, '');
     return;
   }
   try {
-    const isPaid = await verifyCheckoutSession(rememberedSession.sessionId);
+    const isPaid = await verifyCheckoutSession(rememberedSession.sessionId, {
+      purchaseToken: rememberedSession.purchaseToken,
+      projectFingerprint: currentProjectFingerprint,
+      manifestHashes: currentManifestHashes
+    });
     if (isPaid) {
       unlockPaidExport(rememberedSession.sessionId, {
         autoDownload: false,
-        projectKey: rememberedSession.projectKey,
-        projectManifest: rememberedSession.projectManifest
+        ...rememberedSession
       });
     } else {
       setPaid(false, '');
@@ -1061,8 +1227,14 @@ extractBtn.addEventListener('click', async () => {
   if (pendingDraft) applyDraftToPhotos(pendingDraft);
   currentProjectManifest = buildProjectManifest();
   currentProjectKey = buildProjectKey(currentProjectManifest);
+  try {
+    await refreshPaymentFingerprint(currentProjectManifest);
+  } catch (err) {
+    console.warn('Could not build secure payment fingerprint:', err);
+  }
   autosaveRecoveryDraftNow();
   await applyStoredPaymentForCurrentProject();
+  await window.baAccounts?.checkCurrentProjectEntitlement?.();
   renderReviewTable();
   step2El.classList.remove('hidden');
   step2El.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1904,17 +2076,39 @@ if (unlockExportBtn) {
     };
 
     try {
-      const res  = await fetch('/api/create-checkout-session', {
+      await refreshPaymentFingerprint(currentProjectManifest);
+      const requestId = makeClientRequestId();
+      const checkoutOptions = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title:       atlasSettings.title       || '',
-          projectName: atlasSettings.projectName || ''
+          projectName: atlasSettings.projectName || '',
+          projectKey: currentProjectFingerprint,
+          manifestHashes: currentManifestHashes,
+          requestId
         })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not start checkout');
-      rememberPendingSession(data.sessionId, currentProjectKey, currentProjectManifest);
+      };
+      let data;
+      if (window.baAccounts?.isSignedIn()) {
+        data = await window.baAccounts.accountFetch('/api/create-checkout-session', checkoutOptions);
+      } else {
+        const res = await fetch('/api/create-checkout-session', checkoutOptions);
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+      }
+      if (data.entitled) {
+        stripeTab?.close();
+        window.baSetTeamEntitlement?.(true);
+        window.autoDownloadCleanExport?.();
+        return;
+      }
+      const payment = {
+        projectFingerprint: currentProjectFingerprint,
+        manifestHashes: currentManifestHashes,
+        purchaseToken: data.purchaseToken
+      };
+      rememberPendingSession(data.sessionId, currentProjectKey, currentProjectManifest, payment);
       window.baAnalytics?.track('begin_checkout', {
         currency: 'CAD',
         value: 15,
@@ -1943,9 +2137,9 @@ if (unlockExportBtn) {
 
       function handleUnlock() {
         clearInterval(serverPoll);
-        rememberPaidSession(sessionId, currentProjectKey, currentProjectManifest);
+        rememberPaidSession(sessionId, currentProjectKey, currentProjectManifest, payment);
         window.baAnalytics?.trackPurchase(sessionId);
-        setPaid(true, currentProjectKey);
+        setPaid(true, currentProjectKey, 'purchase');
         const downloaded = window.autoDownloadCleanExport?.();
         const hint = document.getElementById('export-hint');
         if (hint) {
@@ -1960,9 +2154,8 @@ if (unlockExportBtn) {
       const sessionId = data.sessionId;
       const serverPoll = setInterval(async () => {
         try {
-          const r    = await fetch(`/api/verify-session?session_id=${encodeURIComponent(sessionId)}`);
-          const json = await r.json();
-          if (json.paid) handleUnlock();
+          const paidNow = await verifyCheckoutSession(sessionId, payment);
+          if (paidNow) handleUnlock();
         } catch (_) { /* ignore transient network errors, keep polling */ }
       }, 2000);
 
