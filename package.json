@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "preview": "node preview-server.js",
+    "test:preview": "node --test tests/preview.test.js",
     "analytics:weekly": "node scripts/ga4-weekly-report.js"
   },
   "dependencies": {
