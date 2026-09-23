@@ -77,6 +77,7 @@ function setPaid(val, projectKey = currentProjectKey) {
   paid = val;
   window.paidExportUnlocked = val;
   paidProjectKey = val ? projectKey : '';
+  window.invalidateMobilePdf?.(val ? 'payment' : 'reset');
   updateExportUI();
 }
 
@@ -252,6 +253,7 @@ const exportHint          = document.getElementById('export-hint');
 const startNewBtn         = document.getElementById('start-new-btn');
 
 const photoFilesInput   = document.getElementById('photo-files');
+const originalFilesInput = document.getElementById('original-files');
 const photoFolderInput  = document.getElementById('photo-folder');
 const draftFileInput    = document.getElementById('draft-file');
 const qgisPathInput     = document.getElementById('qgis-path');
@@ -328,7 +330,7 @@ function resetCurrentWorkflow() {
   window._lastPhotoLogArgs = null;
   window.pendingCleanExportDownload = false;
 
-  [photoFilesInput, photoFolderInput, draftFileInput, boundaryFileInput].forEach(input => {
+  [photoFilesInput, originalFilesInput, photoFolderInput, draftFileInput, boundaryFileInput].forEach(input => {
     if (input) input.value = '';
   });
 
@@ -400,11 +402,17 @@ if (startNewBtn) {
   startNewBtn.addEventListener('click', resetCurrentWorkflow);
 }
 
+function isImageFile(file) {
+  return file.type.toLowerCase().startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|tiff?|gif|bmp)$/i.test(file.name);
+}
+
 function onFilesChosen(fileList, selectionMethod) {
-  const images = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  const selected = Array.from(fileList);
+  const images = selected.filter(isImageFile);
   pendingFiles = images;
+  // Keep the selected Files attached to their inputs while Android reads them.
   if (images.length === 0) {
-    selectionSummary.textContent = 'No image files found in selection.';
+    selectionSummary.textContent = selected.length ? 'No supported image files found. Choose photos from your photo library or files.' : 'No photos selected.';
     selectionSummary.classList.remove('hidden');
     extractBtn.disabled = true;
     return;
@@ -420,6 +428,7 @@ function onFilesChosen(fileList, selectionMethod) {
 }
 
 photoFilesInput.addEventListener('change', () => onFilesChosen(photoFilesInput.files, 'individual'));
+originalFilesInput.addEventListener('change', () => onFilesChosen(originalFilesInput.files, 'original-file'));
 photoFolderInput.addEventListener('change', () => onFilesChosen(photoFolderInput.files, 'folder'));
 
 function normalizeRelativePath(path) {
@@ -493,6 +502,9 @@ function draftPropertiesForPhoto(p) {
     comment: p.comment || '',
     include: p.include !== false,
     ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
+    latitude: p.latitude,
+    longitude: p.longitude,
+    img_dir: p.bearingDegree,
     RelativeAltitude: p.relativeAltitude,
     FlightYawDegree: p.flightYawDegree,
     GimbalYawDegree: p.gimbalYawDegree,
@@ -756,7 +768,7 @@ function applyDraftToPhotos(draft) {
     photo.date = props.date || photo.date || '';
     photo.localQgisPath = props.path || photo.localQgisPath || null;
     photo.relativeAltitude = asFloat(props.RelativeAltitude, photo.relativeAltitude);
-    photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
+    photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.img_dir ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
     photo.bearingSource = props.bearingSource || props.BearingSource || props.DirectionSource || photo.bearingSource || '';
     photo.bearingManual = !!props.bearingManual || photo.bearingSource === 'Manual';
     photo.flightYawDegree = photo.bearingDegree;
@@ -765,6 +777,9 @@ function applyDraftToPhotos(draft) {
       const coords = match.feature.geometry.coordinates || [];
       photo.longitude = asFloat(coords[0], photo.longitude);
       photo.latitude = asFloat(coords[1], photo.latitude);
+    } else {
+      photo.longitude = asFloat(props.longitude, photo.longitude);
+      photo.latitude = asFloat(props.latitude, photo.latitude);
     }
   });
 
@@ -961,6 +976,11 @@ function getDate(exif) {
 
 extractBtn.addEventListener('click', async () => {
   if (!pendingFiles.length) return;
+  if (!window.exifr?.parse) {
+    extractStatus.textContent = 'Photo metadata reader did not load. Check your connection and reload the page before selecting photos.';
+    extractStatus.classList.remove('hidden');
+    return;
+  }
 
   extractBtn.disabled = true;
   extractBtn.textContent = 'Extracting…';
@@ -970,7 +990,12 @@ extractBtn.addEventListener('click', async () => {
 
   const qgisBase = qgisPathInput.value.trim().replace(/[\\\/]+$/, '');
 
-  const results = await Promise.all(pendingFiles.map(async (file, idx) => {
+  const results = [];
+  let exifFailures = 0;
+  for (const [idx, file] of pendingFiles.entries()) {
+    extractStatus.textContent = `Reading photo ${idx + 1} of ${pendingFiles.length}...`;
+    extractStatus.classList.remove('hidden');
+    results.push(await (async () => {
     try {
       const exif = await exifr.parse(file, EXIF_PARSE_OPTIONS) || {};
       const { lat, lon } = extractGps(exif);
@@ -1002,6 +1027,7 @@ extractBtn.addEventListener('click', async () => {
       };
     } catch (err) {
       console.warn('EXIF parse error', file.name, err);
+      exifFailures++;
       const relativePath = getRelativePath(file);
       return {
         include: true,
@@ -1025,7 +1051,8 @@ extractBtn.addEventListener('click', async () => {
         exif: {}
       };
     }
-  }));
+    })());
+  }
 
   photos = results;
 
@@ -1042,12 +1069,19 @@ extractBtn.addEventListener('click', async () => {
     direction_coverage: window.baAnalytics.coverageBucket(bearing, total)
   });
 
-  extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} have GPS coordinates. ${bearing} have photo direction.`;
+  extractStatus.textContent = `Loaded ${total} photo${total !== 1 ? 's' : ''}. ${gps} ${gps === 1 ? 'has' : 'have'} GPS coordinates. ${bearing} ${bearing === 1 ? 'has' : 'have'} photo direction.`;
   extractStatus.classList.remove('hidden');
 
   const warnings = [];
-  if (noGps > 0) warnings.push(`${noGps} photo${noGps !== 1 ? 's' : ''} have no GPS — they will be excluded from the atlas map.`);
-  if (noBearing > 0) warnings.push(`${noBearing} photo${noBearing !== 1 ? 's' : ''} have no direction — their atlas markers will point north unless you choose another direction field.`);
+  if (exifFailures) warnings.push(`Metadata could not be read from ${exifFailures} photo${exifFailures === 1 ? '' : 's'}. Try the original file or reload the page.`);
+  if (gps === 0 && !exifFailures) {
+    warnings.push(currentSelectionMethod === 'original-file'
+      ? 'These selected files still have no readable GPS. Check an original file on desktop or try another source.'
+      : 'The selected copies have no readable GPS or photo direction. On Android, try Choose Original Files (GPS), then browse to the OpenCamera folder in device storage.');
+  } else {
+    if (noGps > 0) warnings.push(`${noGps} photo${noGps === 1 ? '' : 's'} ${noGps === 1 ? 'has' : 'have'} no GPS and will be excluded from the atlas map.`);
+    if (noBearing > 0) warnings.push(`${noBearing} photo${noBearing === 1 ? '' : 's'} ${noBearing === 1 ? 'has' : 'have'} no photo direction.`);
+  }
   if (warnings.length) {
     extractWarnings.innerHTML = warnings.map(w => `<div>${w}</div>`).join('');
     extractWarnings.classList.remove('hidden');
@@ -1092,8 +1126,8 @@ function renderReviewTable() {
     const handleSvg = `<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="2.5" r="1.2"/><circle cx="10" cy="2.5" r="1.2"/><circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="4" cy="11.5" r="1.2"/><circle cx="10" cy="11.5" r="1.2"/></svg>`;
 
     tr.innerHTML = `
-      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span></td>
-      <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
+      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span><div class="mobile-move"><button type="button" class="move-up" aria-label="Move photo ${i + 1} up" ${i === 0 ? 'disabled' : ''}>Move up</button><button type="button" class="move-down" aria-label="Move photo ${i + 1} down" ${i === photos.length - 1 ? 'disabled' : ''}>Move down</button></div></td>
+      <td class="col-include"><input type="checkbox" class="include-checkbox" aria-label="Include ${esc(photo.fileName)}" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
       <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="Preview ${esc(photo.fileName)}" title="Click to preview and comment" loading="lazy" draggable="false"></td>
       <td class="col-num">${photo.photoNumber}</td>
       <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">
@@ -1130,6 +1164,18 @@ function renderReviewTable() {
     tr.querySelector('.row-thumb').addEventListener('click', () => {
       openPhotoPreview(i);
     });
+
+    for (const [selector, offset] of [['.move-up', -1], ['.move-down', 1]]) {
+      tr.querySelector(selector).addEventListener('click', () => {
+        const target = i + offset;
+        if (target < 0 || target >= photos.length) return;
+        [photos[i], photos[target]] = [photos[target], photos[i]];
+        photos.forEach((p, index) => { p.photoNumber = index + 1; });
+        autosaveRecoveryDraftNow();
+        renderReviewTable();
+        window.invalidateMobilePdf?.();
+      });
+    }
 
     /* --- Drag-and-drop handlers --- */
     tr.addEventListener('dragstart', e => {
@@ -1870,6 +1916,8 @@ generateAtlasBtn.addEventListener('click', async () => {
   generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Regenerate Atlas' : 'Regenerate Photo Log'}</span>`;
 
   const step5El = document.getElementById('step-5');
+  step5El.classList.remove('pdf-only-export');
+  step5El.querySelector('.step-desc').textContent = 'Your HTML preview is ready. Unlock a clean, print-ready download with early access pricing.';
   step5El.classList.remove('hidden');
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;
@@ -2033,6 +2081,9 @@ downloadGeojsonBtn.addEventListener('click', () => {
       comment:          p.comment,
       include:          p.include !== false,
       ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
+      latitude:         p.latitude,
+      longitude:        p.longitude,
+      img_dir:          p.bearingDegree,
       RelativeAltitude: p.relativeAltitude,
       bearingDegree:    p.bearingDegree,
       bearingSource:    p.bearingSource || '',

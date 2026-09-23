@@ -13,7 +13,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/full.umd.js"></script>
+    <link rel="stylesheet" href="mobile-pdf.css">
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
@@ -52,7 +53,7 @@
                 <div class="landing-inner">
                     <div class="landing-badge">Browser-based &middot; No uploads &middot; No account needed</div>
                     <h2 class="landing-headline">Turn a folder of photos into a branded photo log or GPS map atlas</h2>
-                    <p class="landing-sub">Drop in your field or drone photos, add captions and your company logo, then generate a print-ready document in seconds. Everything runs in your browser — nothing leaves your device.</p>
+                    <p class="landing-sub">Drop in your field or drone photos, add captions and your company logo, then generate a print-ready document in seconds. Everything runs in your browser — your photos stay on your device.</p>
                     <a href="#step-1" class="btn btn-primary landing-cta">Get Started &rarr;</a>
                 </div>
             </div>
@@ -110,7 +111,7 @@
                         <li>Choose <strong>Map Atlas</strong> (one GPS photo per page with satellite map) or <strong>Photo Log</strong> (two photos per page, no GPS required)</li>
                         <li>Edit captions and photo numbers right in the browser before generating</li>
                         <li>Add your company logo, project name, and accent colour to every page</li>
-                        <li>Generate a print-ready HTML document, then print to PDF from your browser</li>
+                        <li>Create a PDF photo log directly in your browser, or use the existing printable HTML export</li>
                         <li>Nothing is stored or uploaded — all processing happens locally</li>
                     </ul>
                 </div>
@@ -184,13 +185,16 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         Select Photos
                     </label>
-                    <input type="file" id="photo-files" accept="image/*" multiple style="display:none">
+                    <input type="file" id="photo-files" accept="image/*,.heic,.heif" multiple class="file-input-visually-hidden">
+
+                    <label class="btn btn-secondary original-files-option" for="original-files">Choose Original Files (GPS)</label>
+                    <input type="file" id="original-files" multiple class="file-input-visually-hidden">
 
                     <label class="btn btn-secondary" for="photo-folder">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         Select Folder
                     </label>
-                    <input type="file" id="photo-folder" webkitdirectory directory multiple style="display:none">
+                    <input type="file" id="photo-folder" webkitdirectory directory multiple class="file-input-visually-hidden">
 
                     <label class="btn btn-secondary" for="draft-file">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
@@ -458,6 +462,8 @@
                     <span id="generate-btn-label">Generate Printable Atlas</span>
                 </button>
 
+                <button class="btn btn-primary btn-generate hidden" id="create-photo-log-pdf" type="button">Create PDF Photo Log</button>
+                <p class="field-hint hidden" id="pdf-generate-note">Creates a watermarked PDF preview on this device. Unlock for a clean export.</p>
                 <div id="generate-error" class="generate-error hidden"></div>
             </section>
 
@@ -489,6 +495,8 @@
                 </div>
 
                 <div class="export-row">
+                    <button class="btn btn-primary hidden" id="save-photo-log-pdf" type="button" disabled>Save PDF</button>
+                    <button class="btn btn-secondary hidden" id="share-photo-log-pdf" type="button" disabled>Share PDF</button>
                     <button class="btn btn-primary" id="download-atlas-html" disabled>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download Printable HTML
@@ -506,6 +514,7 @@
                         Save Review Draft
                     </button>
                 </div>
+                <p class="export-note hidden" id="pdf-export-status" role="status" aria-live="polite"></p>
                 <p class="export-note">Save Review Draft creates a small GeoJSON handoff file. It does not include image files, so keep the original photo folder with the draft.</p>
             </section>
 
@@ -589,6 +598,9 @@
     <script src="script.js"></script>
     <script src="atlas.js"></script>
     <script src="photolog.js"></script>
+    <script src="vendor/pdf-lib.min.js"></script>
+    <script src="photo-log-pdf.js"></script>
+    <script src="mobile-pdf-ui.js"></script>
     <script>
         (function () {
             var nav = document.getElementById('sticky-nav');

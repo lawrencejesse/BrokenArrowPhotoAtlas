@@ -31,7 +31,7 @@ function loadImage(src) {
   });
 }
 
-async function toDataUrl(blobUrl) {
+async function toDataUrl(blobUrl, fileName) {
   try {
     const res = await fetch(blobUrl);
     const blob = await res.blob();
@@ -52,15 +52,15 @@ async function toDataUrl(blobUrl) {
       URL.revokeObjectURL(tempUrl);
     }
   } catch (e) {
-    console.warn('Could not encode photo as data URL, falling back to blob URL:', blobUrl, e);
-    return blobUrl;
+    console.error('Could not encode photo for atlas', fileName, e);
+    throw new Error(`Could not read ${fileName || 'a selected photo'} on this device. Re-select the original image and try again.`);
   }
 }
 
 async function photosToDataUrls(included) {
   const dataUrls = [];
   for (const photo of included) {
-    dataUrls.push(await toDataUrl(photo.objectUrl));
+    dataUrls.push(await toDataUrl(photo.objectUrl, photo.fileName));
   }
   return dataUrls;
 }
