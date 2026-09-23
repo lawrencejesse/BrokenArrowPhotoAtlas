@@ -119,7 +119,10 @@
       window.baAnalytics?.track('pdf_generated', { output_mode: 'photo_log', watermark_status: paid ? 'clean' : 'watermarked' });
     } catch (error) {
       console.error('PDF generation failed', error);
-      generateError.textContent = `Could not create PDF: ${error.message || error}`;
+      const message = error instanceof Event
+        ? 'Chrome could not read a selected image. Re-select the original photos and try again.'
+        : String(error?.message || error);
+      generateError.textContent = `Could not create PDF: ${message}`;
       generateError.classList.remove('hidden');
       note.textContent = 'Check the error and try again with fewer photos if needed.';
     } finally {

@@ -330,7 +330,7 @@ function resetCurrentWorkflow() {
   window._lastPhotoLogArgs = null;
   window.pendingCleanExportDownload = false;
 
-  [photoFilesInput, photoFolderInput, draftFileInput, boundaryFileInput].forEach(input => {
+  [photoFilesInput, originalFilesInput, photoFolderInput, draftFileInput, boundaryFileInput].forEach(input => {
     if (input) input.value = '';
   });
 
@@ -410,10 +410,7 @@ function onFilesChosen(fileList, selectionMethod) {
   const selected = Array.from(fileList);
   const images = selected.filter(isImageFile);
   pendingFiles = images;
-  // Clearing the input lets the same photos be selected again after a failed attempt.
-  photoFilesInput.value = '';
-  originalFilesInput.value = '';
-  photoFolderInput.value = '';
+  // Keep the selected Files attached to their inputs while Android reads them.
   if (images.length === 0) {
     selectionSummary.textContent = selected.length ? 'No supported image files found. Choose photos from your photo library or files.' : 'No photos selected.';
     selectionSummary.classList.remove('hidden');
@@ -505,6 +502,9 @@ function draftPropertiesForPhoto(p) {
     comment: p.comment || '',
     include: p.include !== false,
     ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
+    latitude: p.latitude,
+    longitude: p.longitude,
+    img_dir: p.bearingDegree,
     RelativeAltitude: p.relativeAltitude,
     FlightYawDegree: p.flightYawDegree,
     GimbalYawDegree: p.gimbalYawDegree,
@@ -768,7 +768,7 @@ function applyDraftToPhotos(draft) {
     photo.date = props.date || photo.date || '';
     photo.localQgisPath = props.path || photo.localQgisPath || null;
     photo.relativeAltitude = asFloat(props.RelativeAltitude, photo.relativeAltitude);
-    photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
+    photo.bearingDegree = normalizeBearing(props.bearingDegree ?? props.img_dir ?? props.BearingDegree ?? props.FlightYawDegree ?? photo.bearingDegree);
     photo.bearingSource = props.bearingSource || props.BearingSource || props.DirectionSource || photo.bearingSource || '';
     photo.bearingManual = !!props.bearingManual || photo.bearingSource === 'Manual';
     photo.flightYawDegree = photo.bearingDegree;
@@ -777,6 +777,9 @@ function applyDraftToPhotos(draft) {
       const coords = match.feature.geometry.coordinates || [];
       photo.longitude = asFloat(coords[0], photo.longitude);
       photo.latitude = asFloat(coords[1], photo.latitude);
+    } else {
+      photo.longitude = asFloat(props.longitude, photo.longitude);
+      photo.latitude = asFloat(props.latitude, photo.latitude);
     }
   });
 
@@ -2078,6 +2081,9 @@ downloadGeojsonBtn.addEventListener('click', () => {
       comment:          p.comment,
       include:          p.include !== false,
       ...(p.localQgisPath ? { path: p.localQgisPath } : {}),
+      latitude:         p.latitude,
+      longitude:        p.longitude,
+      img_dir:          p.bearingDegree,
       RelativeAltitude: p.relativeAltitude,
       bearingDegree:    p.bearingDegree,
       bearingSource:    p.bearingSource || '',
