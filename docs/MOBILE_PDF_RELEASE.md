@@ -4,7 +4,7 @@
 - Source baseline: `pre-mobile-pdf` / `310f3b7b33da168fd3e94b70b5387c7b368eaafe`.
 - Development branch: `feature/mobile-pdf`.
 - Local preview: `npm run preview`, then http://localhost:5011/.
-- Mobile PDF implementation has not started. Preview currently runs the existing HTML workflow.
+- Direct PDF photo log is on `feature/mobile-pdf`, alongside the existing HTML workflow. It has not been deployed or tested on a physical phone.
 
 ## Baseline verified 2026-09-23
 
@@ -16,12 +16,12 @@ Repository deployment configuration at baseline: Replit autoscale; Node 20 modul
 
 ## Hosted preview
 
-Create a separate Replit app from `feature/mobile-pdf`; do not change the production app's branch, domain, secrets, or deployment. In that separate app only, replace `.replit` with `preview.replit.toml`. Preview deployment command: `npm run preview`; set `PREVIEW_HOST=0.0.0.0` and the platform's `PORT`. Assign a separate preview hostname. Do not add production Stripe keys or an admin token.
+Use the separate `preview/mobile-pdf` branch for a new Replit app. That branch has its own `.replit` and start command, already set to launch the payment-disabled preview. Keep the production app on `main`. Do not copy production Stripe keys or an admin token into the preview. The preview app should get its own Replit hostname.
 
-The preview entry point disables every payment API, omits production analytics, adds a visible preview banner, and marks pages noindex. It retains watermarked HTML output. Test-mode checkout is a later step, using a separate Stripe sandbox; no checkout is available yet.
+The preview entry point disables every payment API, omits production analytics, adds a visible preview banner, and marks pages noindex. Watermarked PDF and HTML output work without payment. Test-mode checkout is a later step, using a separate Stripe sandbox; no checkout is available yet.
 
 ## Release gate
 
-Add PDF alongside HTML. Before merging: verify existing atlas/photo-log output and draft save/resume; test PDF layout and sharing on real iPhone and Android; verify checkout and paid recovery in a sandbox. Review the PR, tag the release, and confirm the prior Replit deployment is restorable before deploying production.
+Before merging: verify existing atlas/photo-log output and draft save/resume; test PDF saving and sharing on a real iPhone and Android; verify checkout and paid recovery in a sandbox. Review the PR, tag the release, and confirm the prior Replit deployment is restorable before deploying production. Merge `feature/mobile-pdf`, never `preview/mobile-pdf`.
 
 If rollback is needed, restore the previous Replit deployment and verify its assets. Rebuilding the source tag is a fallback only after verifying its server code and configuration match the intended production baseline.

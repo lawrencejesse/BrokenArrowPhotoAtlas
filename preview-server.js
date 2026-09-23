@@ -21,19 +21,20 @@ app.get('/analytics.js', (req, res) => res.type('js').send('// Analytics disable
 app.get(['/', '/index.html'], (req, res) => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8')
     .replace(/<script\b[^>]*src="https:\/\/www\.googletagmanager\.com[^>]*><\/script>/g, '')
-    .replace('<body>', '<body><aside style="padding:12px;background:#fff3cd;color:#332701;text-align:center;font:600 15px system-ui">MOBILE PDF DEVELOPMENT PREVIEW &middot; Payments disabled &middot; Existing HTML workflow only</aside>');
+    .replace('<body>', '<body><aside style="padding:12px;background:#fff3cd;color:#332701;text-align:center;font:600 15px system-ui">MOBILE PDF DEVELOPMENT PREVIEW &middot; Payments disabled &middot; Not production</aside>');
   res.type('html').send(html);
 });
 // Serve app assets only. Do not expose source, configuration, or baseline notes.
-for (const file of ['script.js', 'atlas.js', 'photolog.js', 'styles.css', 'logo.svg', 'generated-icon.png']) {
+for (const file of ['script.js', 'atlas.js', 'photolog.js', 'photo-log-pdf.js', 'mobile-pdf-ui.js', 'mobile-pdf.css', 'styles.css', 'logo.svg', 'generated-icon.png']) {
   app.get('/' + file, (req, res) => res.sendFile(path.join(root, file)));
 }
+app.get('/vendor/pdf-lib.min.js', (req, res) => res.sendFile(path.join(root, 'vendor', 'pdf-lib.min.js')));
 app.use('/assets', express.static(path.join(root, 'assets'), { dotfiles: 'deny' }));
 app.use((req, res) => res.sendStatus(404));
 
 if (require.main === module) {
   const port = Number(process.env.PORT || 5011);
-  const host = process.env.PREVIEW_HOST || '127.0.0.1';
+  const host = process.env.PREVIEW_HOST || (process.env.REPL_ID ? '0.0.0.0' : '127.0.0.1');
   app.listen(port, host, () => console.log(`PhotoLog preview: http://${host}:${port}`));
 }
 module.exports = app;

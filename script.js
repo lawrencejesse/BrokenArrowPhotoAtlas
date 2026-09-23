@@ -77,6 +77,7 @@ function setPaid(val, projectKey = currentProjectKey) {
   paid = val;
   window.paidExportUnlocked = val;
   paidProjectKey = val ? projectKey : '';
+  window.invalidateMobilePdf?.(val ? 'payment' : 'reset');
   updateExportUI();
 }
 
@@ -1092,8 +1093,8 @@ function renderReviewTable() {
     const handleSvg = `<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="2.5" r="1.2"/><circle cx="10" cy="2.5" r="1.2"/><circle cx="4" cy="7" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="4" cy="11.5" r="1.2"/><circle cx="10" cy="11.5" r="1.2"/></svg>`;
 
     tr.innerHTML = `
-      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span></td>
-      <td class="col-include"><input type="checkbox" class="include-checkbox" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
+      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">${handleSvg}</span><div class="mobile-move"><button type="button" class="move-up" aria-label="Move photo ${i + 1} up" ${i === 0 ? 'disabled' : ''}>Move up</button><button type="button" class="move-down" aria-label="Move photo ${i + 1} down" ${i === photos.length - 1 ? 'disabled' : ''}>Move down</button></div></td>
+      <td class="col-include"><input type="checkbox" class="include-checkbox" aria-label="Include ${esc(photo.fileName)}" data-idx="${i}" ${photo.include ? 'checked' : ''}></td>
       <td class="col-thumb"><img class="row-thumb" src="${photo.objectUrl}" alt="Preview ${esc(photo.fileName)}" title="Click to preview and comment" loading="lazy" draggable="false"></td>
       <td class="col-num">${photo.photoNumber}</td>
       <td class="col-yaw" title="${esc(photo.bearingSource || 'No direction source')}">
@@ -1130,6 +1131,18 @@ function renderReviewTable() {
     tr.querySelector('.row-thumb').addEventListener('click', () => {
       openPhotoPreview(i);
     });
+
+    for (const [selector, offset] of [['.move-up', -1], ['.move-down', 1]]) {
+      tr.querySelector(selector).addEventListener('click', () => {
+        const target = i + offset;
+        if (target < 0 || target >= photos.length) return;
+        [photos[i], photos[target]] = [photos[target], photos[i]];
+        photos.forEach((p, index) => { p.photoNumber = index + 1; });
+        autosaveRecoveryDraftNow();
+        renderReviewTable();
+        window.invalidateMobilePdf?.();
+      });
+    }
 
     /* --- Drag-and-drop handlers --- */
     tr.addEventListener('dragstart', e => {
@@ -1870,6 +1883,8 @@ generateAtlasBtn.addEventListener('click', async () => {
   generateAtlasBtn.innerHTML = svgIcon + ` <span id="generate-btn-label">${isAtlas ? 'Regenerate Atlas' : 'Regenerate Photo Log'}</span>`;
 
   const step5El = document.getElementById('step-5');
+  step5El.classList.remove('pdf-only-export');
+  step5El.querySelector('.step-desc').textContent = 'Your HTML preview is ready. Unlock a clean, print-ready download with early access pricing.';
   step5El.classList.remove('hidden');
   downloadCsvBtn.disabled = false;
   downloadGeojsonBtn.disabled = false;

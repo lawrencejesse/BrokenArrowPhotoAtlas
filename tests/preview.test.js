@@ -29,7 +29,7 @@ test('preview isolates payments, analytics, and private app files', async () => 
     for (const route of ['/server.js', '/.replit', '/package.json', '/docs/MOBILE_PDF_RELEASE.md']) {
       assert.equal((await fetch(base + route)).status, 404);
     }
-    for (const route of ['/script.js', '/atlas.js', '/photolog.js', '/styles.css', '/logo.svg']) {
+    for (const route of ['/script.js', '/atlas.js', '/photolog.js', '/photo-log-pdf.js', '/mobile-pdf-ui.js', '/mobile-pdf.css', '/vendor/pdf-lib.min.js', '/styles.css', '/logo.svg']) {
       assert.equal((await fetch(base + route)).status, 200);
     }
   } finally {

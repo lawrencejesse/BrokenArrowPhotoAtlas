@@ -53,7 +53,7 @@ A mostly different photo folder is treated as a new job and requires a new unloc
 
 ## Local Development
 
-Mobile PDF development uses the separate `feature/mobile-pdf` branch. Run `npm run preview` for the isolated preview on port 5011, with payments and analytics disabled. See [release isolation](docs/MOBILE_PDF_RELEASE.md) before configuring a hosted preview or deploying.
+Mobile PDF development uses the separate `feature/mobile-pdf` branch. Photo Log mode now creates a PDF directly in the browser, with Save and Share controls. Map Atlas PDF is not included. Run `npm run preview` for the isolated preview on port 5011, with payments and analytics disabled. See [release isolation](docs/MOBILE_PDF_RELEASE.md) before configuring a hosted preview or deploying.
 
 Install dependencies:
 
