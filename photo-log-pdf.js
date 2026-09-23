@@ -147,7 +147,12 @@ async function createPhotoLogPdf(entries, settings, imageBytesForEntry, options 
 }
 
 async function browserJpegBytes(photo) {
-  const image = await loadImage(photo.objectUrl);
+  let image;
+  try {
+    image = await loadImage(photo.objectUrl);
+  } catch {
+    throw new Error(`This browser could not open ${photo.fileName || 'a photo'}. Try a JPEG or PNG copy of that image.`);
+  }
   const side = Math.max(image.naturalWidth, image.naturalHeight);
   const scale = Math.min(1, 1800 / side);
   const canvas = document.createElement('canvas');

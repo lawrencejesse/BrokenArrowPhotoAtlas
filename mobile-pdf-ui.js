@@ -56,7 +56,7 @@
     invalidate();
     if (phoneLayout) preferPhotoLog();
   });
-  for (const id of ['photo-files', 'photo-folder']) {
+  for (const id of ['photo-files', 'original-files', 'photo-folder']) {
     document.getElementById(id)?.addEventListener('change', () => {
       invalidate();
       if (phoneLayout && !extractBtn.disabled) extractBtn.click();
