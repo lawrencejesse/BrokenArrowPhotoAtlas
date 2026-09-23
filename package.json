@@ -4,7 +4,7 @@
   "description": "Photo Log Atlas Builder — Broken Arrow Consulting",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node preview-server.js",
     "preview": "node preview-server.js",
     "test": "node --test",
     "test:preview": "node --test tests/preview.test.js",

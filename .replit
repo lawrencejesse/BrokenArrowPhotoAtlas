@@ -1,51 +1,17 @@
+# Apply only to a SEPARATE preview Replit app. Production keeps its .replit.
 entrypoint = "index.html"
 modules = ["web", "nodejs-20"]
-
-[nix]
-channel = "stable-24_11"
-packages = ["static-web-server"]
+run = "npm run preview"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["node", "server.js"]
+run = ["npm", "run", "preview"]
 
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Serve static"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node server.js"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Serve static"
-
-[[ports]]
-localPort = 80
-externalPort = 80
+[userenv]
+[userenv.shared]
+PREVIEW_HOST = "0.0.0.0"
+PORT = "5000"
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[agent]
-expertMode = true
-
-[userenv]
-
-[userenv.shared]
-ADMIN_TOKEN = "ba-admin-2024"
+externalPort = 80
