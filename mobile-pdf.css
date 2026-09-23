@@ -28,7 +28,7 @@ label:has(+ .file-input-visually-hidden:focus-visible) {
   #review-table tbody tr {
     display: grid;
     grid-template-columns: 76px minmax(0, 1fr) 40px;
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows: repeat(8, auto);
     background: var(--slate-dark);
     border: 1px solid var(--slate-border);
     border-radius: 8px;
@@ -40,9 +40,20 @@ label:has(+ .file-input-visually-hidden:focus-visible) {
   #review-table tbody tr .col-num { display: block; grid-area: 1 / 2; font-weight: 700; }
   #review-table tbody tr .col-name { display: block; grid-area: 2 / 2; overflow-wrap: anywhere; }
   #review-table tbody tr .col-include { display: block; grid-area: 1 / 3 / 3 / 4; }
-  #review-table tbody tr .col-comment { display: block; grid-area: 3 / 1 / 4 / 4; }
+  #review-table tbody tr .col-yaw { display: block; grid-area: 3 / 1 / 4 / 4; width: auto; }
+  #review-table tbody tr .col-yaw::before { content: 'Image direction'; display: block; color: var(--body-text); font: 12px Inter, sans-serif; margin-top: 7px; }
+  #review-table tbody tr .direction-cell { flex-wrap: wrap; white-space: normal; }
+  #review-table tbody tr .direction-source { max-width: none; }
+  #review-table tbody tr .col-date { display: block; grid-area: 4 / 1 / 5 / 4; width: auto; }
+  #review-table tbody tr .col-date::before { content: 'Date  '; color: var(--body-text); }
+  #review-table tbody tr .col-coord { display: block; width: auto; }
+  #review-table tbody tr .col-coord:nth-child(9) { grid-area: 5 / 1 / 6 / 4; }
+  #review-table tbody tr .col-coord:nth-child(9)::before { content: 'Latitude  '; color: var(--body-text); }
+  #review-table tbody tr .col-coord:nth-child(10) { grid-area: 6 / 1 / 7 / 4; }
+  #review-table tbody tr .col-coord:nth-child(10)::before { content: 'Longitude  '; color: var(--body-text); }
+  #review-table tbody tr .col-comment { display: block; grid-area: 7 / 1 / 8 / 4; }
   #review-table tbody tr .col-comment::before { content: 'Caption'; display: block; margin: 7px 0 4px; font-size: 12px; }
-  #review-table tbody tr .col-drag { display: block; grid-area: 4 / 1 / 5 / 4; }
+  #review-table tbody tr .col-drag { display: block; grid-area: 8 / 1 / 9 / 4; }
   #review-table .drag-handle { display: none; }
   #review-table .mobile-move { display: flex; gap: 8px; padding-top: 8px; }
   #review-table .mobile-move button {
