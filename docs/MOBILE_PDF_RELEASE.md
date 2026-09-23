@@ -5,6 +5,7 @@
 - Development branch: `feature/mobile-pdf`.
 - Local preview: `npm run preview`, then http://localhost:5011/.
 - Direct PDF photo log is on `feature/mobile-pdf`, alongside the existing HTML workflow. It has not been deployed or tested on a physical phone.
+- On Android, the Google Photos picker can hand the browser a copy without GPS metadata. The mobile preview offers **Choose Original Files (GPS)** so a user can browse to the OpenCamera files through the file manager. Confirm this on a real Android phone before release; the website cannot recover GPS from a redacted copy. Android documents location metadata redaction in its [media access guidance](https://developer.android.com/training/data-storage/shared/media).
 
 ## Baseline verified 2026-09-23
 
